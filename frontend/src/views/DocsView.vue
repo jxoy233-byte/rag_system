@@ -3,6 +3,10 @@ import { ref, onMounted, onBeforeUnmount, computed, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Upload, FileText, Trash2, RefreshCw, Search, ArrowLeft, AlertCircle, CheckCircle2, Clock, X, RotateCcw } from 'lucide-vue-next'
 import { docApi, kbApi } from '@/api/client'
+import { isTauri } from '@/utils'
+import { invoke } from '@tauri-apps/api/core'
+import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
+import type { UnlistenFn } from '@tauri-apps/api/event'
 import type { Document, KnowledgeBase } from '@/types'
 import { formatBytes, formatDate } from '@/utils'
 
@@ -32,6 +36,7 @@ const dragOver = ref(false)
 const rowRefs = new Map<number, HTMLElement>()
 let fetching = false
 let pollTimer: number | null = null
+let unlistenDragDrop: UnlistenFn | null = null
 
 function setRowRef(id: number, el: HTMLElement | null) {
   if (el) rowRefs.set(id, el)
@@ -96,6 +101,69 @@ async function upload(files: FileList | null) {
   } finally {
     uploading.value = false
   }
+}
+
+// 从文件路径上传（Rust 端文件拖拽事件）
+async function uploadFromPaths(paths: string[]) {
+  if (!paths || paths.length === 0 || !kbId.value) return
+  uploading.value = true
+  error.value = null
+  try {
+    // 读取文件内容并构建 File 对象
+    const files: File[] = []
+    for (const path of paths) {
+      try {
+        // 使用 Tauri 文件系统 API 读取文件
+        const { readFile } = await import('@tauri-apps/plugin-fs')
+        const contents = await readFile(path)
+        const filename = path.split('/').pop() || 'unknown'
+        const mime = getMimeType(filename)
+        const file = new File([contents], filename, { type: mime })
+        files.push(file)
+      } catch (e) {
+        console.error(`Failed to read file ${path}:`, e)
+      }
+    }
+
+    if (files.length === 0) return
+
+    // 调用上传 API
+    let uploadError: string | null = null
+    if (files.length === 1) {
+      await docApi.upload(kbId.value, files[0])
+    } else {
+      const result = (await docApi.uploadBatch(kbId.value, files)) as {
+        failed?: { filename?: string; error: string }[]
+      }
+      if (result.failed?.length) {
+        uploadError = result.failed
+          .map((item) => `${item.filename || '文件'}: ${item.error}`)
+          .join('\n')
+      }
+    }
+    await fetchDocs(false)
+    error.value = uploadError
+  } catch (e: any) {
+    error.value = e?.data?.detail || e?.message || String(e)
+  } finally {
+    uploading.value = false
+  }
+}
+
+function getMimeType(filename: string): string {
+  const ext = filename.split('.').pop()?.toLowerCase() || ''
+  const mimeMap: Record<string, string> = {
+    pdf: 'application/pdf',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    md: 'text/markdown',
+    txt: 'text/plain',
+    html: 'text/html',
+    htm: 'text/html',
+    csv: 'text/csv',
+  }
+  return mimeMap[ext] || 'application/octet-stream'
 }
 
 function onFileInput(e: Event) {
@@ -164,6 +232,31 @@ function statusColor(s: string) {
 }
 
 onMounted(async () => {
+  // 提升窗口层级 + 监听文件拖拽事件
+  if (isTauri()) {
+    try {
+      await invoke('set_window_on_top', { onTop: true })
+
+      // 使用 Tauri 原生文件拖拽 API
+      const webview = getCurrentWebviewWindow()
+      unlistenDragDrop = await webview.onDragDropEvent((event) => {
+        if (event.payload.type === 'over') {
+          dragOver.value = true
+        } else if (event.payload.type === 'drop') {
+          dragOver.value = false
+          const paths = event.payload.paths
+          if (paths && paths.length > 0) {
+            uploadFromPaths(paths)
+          }
+        } else if (event.payload.type === 'leave') {
+          dragOver.value = false
+        }
+      })
+    } catch (e) {
+      console.warn('set_window_on_top / onDragDropEvent failed:', e)
+    }
+  }
+
   try {
     kb.value = (await kbApi.get(kbId.value)) as KnowledgeBase
   } catch (e: any) {
@@ -178,6 +271,13 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  // 恢复窗口层级 + 清理监听
+  if (isTauri()) {
+    invoke('set_window_on_top', { onTop: false }).catch((e) =>
+      console.warn('set_window_on_top(false) failed:', e)
+    )
+    unlistenDragDrop?.()
+  }
   if (pollTimer !== null) window.clearInterval(pollTimer)
 })
 </script>

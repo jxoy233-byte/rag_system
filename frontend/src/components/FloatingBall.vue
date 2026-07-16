@@ -5,6 +5,8 @@ import { isTauri } from '@/utils'
 
 const emit = defineEmits<{
   (e: 'click'): void
+  (e: 'dragenter'): void
+  (e: 'drop', files: FileList): void
 }>()
 
 // 区分单击与拖拽：mousedown 到 mouseup 之间位移 < 5px 才算 click
@@ -30,10 +32,31 @@ function onMouseUp(e: MouseEvent) {
   const dy = Math.abs(e.clientY - downY)
   if (dx <= 5 && dy <= 5) emit('click')
 }
+
+// 拖拽文件到浮球上 → 展开面板
+function onDragOver(e: DragEvent) {
+  if (e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files')) {
+    e.preventDefault()
+    emit('dragenter')
+  }
+}
+
+function onDrop(e: DragEvent) {
+  if (e.dataTransfer?.files?.length) {
+    e.preventDefault()
+    emit('drop', e.dataTransfer.files)
+  }
+}
 </script>
 
 <template>
-  <div class="ball" @mousedown="onMouseDown" @mouseup="onMouseUp">
+  <div
+    class="ball"
+    @mousedown="onMouseDown"
+    @mouseup="onMouseUp"
+    @dragover="onDragOver"
+    @drop="onDrop"
+  >
     <div class="ring"></div>
     <div class="inner">
       <MessageCircle :size="22" />

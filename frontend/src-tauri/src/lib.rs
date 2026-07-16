@@ -40,6 +40,15 @@ async fn set_window_mode(window: tauri::Window, mode: String) -> Result<(), Stri
     Ok(())
 }
 
+/// 设置窗口是否始终置顶（用于拖拽上传时提升层级）
+#[tauri::command]
+async fn set_window_on_top(window: tauri::Window, on_top: bool) -> Result<(), String> {
+    window
+        .set_always_on_top(on_top)
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 /// 退出应用（托盘菜单里用）。
 #[tauri::command]
 fn quit_app(app: tauri::AppHandle) {
@@ -65,7 +74,8 @@ fn toggle_main_window(app: &tauri::AppHandle) {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
-        .invoke_handler(tauri::generate_handler![start_window_drag, set_window_mode, quit_app])
+        .plugin(tauri_plugin_fs::init())
+        .invoke_handler(tauri::generate_handler![start_window_drag, set_window_mode, set_window_on_top, quit_app])
         .setup(|app| {
             // 注：之前这里调了 setMovableByWindowBackground(true) 让整窗都可拖。
             // 用户反馈「拖拽范围太大」，现在改回只在 header 区域可拖，
@@ -84,6 +94,7 @@ pub fn run() {
                     let y = (logical_h - 160.0).max(0.0);
                     let _ = window.set_position(LogicalPosition::new(x, y));
                 }
+
                 // ---- 失焦自动折叠 ----
                 // 用户点击窗口外部（桌面、其他 App、托盘菜单外）时，窗口失焦。
                 // 把信号转发给前端，让前端收起成浮球。

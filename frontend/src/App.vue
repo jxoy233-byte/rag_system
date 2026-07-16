@@ -78,9 +78,12 @@ async function showPanel() {
 }
 
 async function closePanel() {
-  // 正在拖文件时不要折叠：用户往往把文件从桌面拖向文件选择 dropzone，
-  // 期间鼠标会短暂越过窗口边界触发失焦，导致浮窗塌掉，破坏交互。
+  // 在文档上传页面时，不自动折叠（支持拖拽上传）
+  if (route.name === 'docs') return
+
+  // 正在拖文件时也不要折叠
   if (isDraggingFile.value) return
+
   await setMode('ball')
   expanded.value = false
 }
@@ -95,13 +98,14 @@ onMounted(async () => {
   window.addEventListener('dragend', resetDragDepth)
 
   if (!isTauri()) return
-  // 监听 Rust 发来的事件：⌘⇧Space / 托盘显示时通知前端展开面板
+  // 监听 Rust 发来的事件
   try {
     const { listen } = await import('@tauri-apps/api/event')
+    // ⌘⇧Space / 托盘显示时通知前端展开面板
     listen('rag://show', async () => {
       await showPanel()
     }).then((u) => (unlistenShow = u))
-    // 窗口失焦 → 折叠成浮球（用户点击窗口外部时）
+    // 窗口失焦 → 折叠（但在 docs 页面时不折叠，支持拖拽上传）
     listen('rag://blur', async () => {
       await closePanel()
     }).then((u) => (unlistenBlur = u))
@@ -125,7 +129,10 @@ onUnmounted(() => {
 
 <template>
   <div class="app-root" :class="`theme-${settings.theme}`">
-    <FloatingBall v-if="!expanded" @click="showPanel" />
+    <FloatingBall
+      v-if="!expanded"
+      @click="showPanel"
+    />
     <ChatPanel
       v-else-if="route.name === 'chat'"
       @close="closePanel"

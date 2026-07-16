@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "默认权限：核心 API + 全局快捷键",
+  "description": "默认权限：核心 API + 全局快捷键 + 文件系统",
   "windows": ["main"],
   "permissions": [
     "core:default",
@@ -12,6 +12,9 @@
     "core:window:allow-set-resizable",
     "core:window:allow-close",
     "core:webview:allow-create-webview-window",
-    "global-shortcut:default"
+    "global-shortcut:default",
+    "fs:default",
+    "fs:allow-read-text-file",
+    "fs:allow-read-file"
   ]
 }

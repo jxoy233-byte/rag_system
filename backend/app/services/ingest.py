@@ -18,6 +18,7 @@ from app.embeddings.factory import EmbeddingFactory
 from app.loaders import DocumentLoaderFactory
 from app.loaders.base import ImageInfo, LoadedDocument
 from app.models import Document, KnowledgeBase
+from app.models.document import DocumentStatus
 from app.services.bm25_store import BM25Doc, BM25Store
 from app.services.image_describer import create_image_describer
 from app.splitters import build_splitter

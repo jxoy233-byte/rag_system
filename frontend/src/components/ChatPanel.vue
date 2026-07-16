@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, nextTick, onMounted } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   Send,
@@ -15,6 +15,7 @@ import {
   Square,
   History,
   Search,
+  Upload,
 } from 'lucide-vue-next'
 import { useChatStore } from '@/stores/chat'
 import { useKnowledgeBaseStore } from '@/stores/knowledgeBase'
@@ -39,6 +40,7 @@ const input = ref('')
 const scrollerRef = ref<HTMLElement | null>(null)
 const inputRef = ref<HTMLTextAreaElement | null>(null)
 const showHistory = ref(false)
+const dragOver = ref(false)
 
 const placeholder = computed(() =>
   settings.currentKbId
@@ -144,10 +146,57 @@ onMounted(() => {
   scrollToBottom(false)
   if (kbStore.items.length === 0) kbStore.fetch()
 })
+
+onUnmounted(() => {
+  dragOver.value = false
+})
+
+// 拖拽上传：检测拖拽文件 -> 跳转到 DocsView 上传
+function onDragOver(e: DragEvent) {
+  e.preventDefault()
+  if (e.dataTransfer?.types?.includes('Files')) {
+    dragOver.value = true
+  }
+}
+
+function onDragLeave(e: DragEvent) {
+  e.preventDefault()
+  // 只有真正离开面板时才关闭 dragOver
+  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+  const x = e.clientX
+  const y = e.clientY
+  if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+    dragOver.value = false
+  }
+}
+
+async function onDropFiles(e: DragEvent) {
+  e.preventDefault()
+  dragOver.value = false
+
+  // 直接跳转到文档页面
+  if (settings.currentKbId) {
+    router.push({ name: 'docs', params: { id: settings.currentKbId } })
+  } else {
+    router.push({ name: 'knowledgeBases' })
+  }
+}
 </script>
 
 <template>
-  <div class="panel" :class="settings.themeClass">
+  <div
+    class="panel"
+    :class="settings.themeClass"
+    @dragover.prevent="onDragOver"
+    @dragleave="onDragLeave"
+    @drop="onDropFiles"
+  >
+    <!-- 拖拽上传提示遮罩 -->
+    <div v-if="dragOver" class="drag-overlay">
+      <Upload :size="48" />
+      <p>放开鼠标，进入文档管理上传</p>
+    </div>
+
     <header class="bar" data-tauri-drag-region @mousedown="handleHeaderMouseDown">
       <KnowledgePicker />
       <div class="grow"></div>
@@ -405,5 +454,23 @@ onMounted(() => {
 }
 .send.stop {
   background: var(--danger);
+}
+.drag-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  z-index: 100;
+  border-radius: 12px;
+  color: #fff;
+  pointer-events: none;
+}
+.drag-overlay p {
+  font-size: 14px;
+  opacity: 0.9;
 }
 </style>

@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1640 1280" font-family="Noto Sans SC">
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="9" refY="4"
+            orient="auto" markerUnits="strokeWidth"><path d="M0 0 L10 4 L0 8 z"/></marker>
+  </defs>
+
+  <rect width="1640" height="1280" fill="#E4D2C4"/>
+
+  <text x="80" y="92" font-size="44" font-weight="700" fill="#1F1A14" letter-spacing="2">决策流程 · LangGraph Agent</text>
+  <text x="80" y="128" font-size="18" font-weight="400" fill="#1F1A14">classify → {rag · web · direct · hybrid} → build_prompt → generate · SSE 流式</text>
+  <line x1="80" y1="150" x2="1560" y2="150" stroke="#1F1A14" stroke-width="2"/>
+
+  <!-- ============== INPUT BLOCK ============== -->
+  <text x="80" y="200" font-size="18" font-weight="700" fill="#1F1A14" letter-spacing="3">输入 · 请求上下文</text>
+
+  <rect x="80" y="220" width="280" height="110" fill="#FFFFFF" stroke="#1F1A14" stroke-width="2" rx="4"/>
+  <text x="220" y="252" font-size="18" font-weight="700" fill="#1F1A14" text-anchor="middle">ChatRequest</text>
+  <text x="220" y="278" font-size="13" fill="#1F1A14" text-anchor="middle">question · history</text>
+  <text x="220" y="300" font-size="13" fill="#1F1A14" text-anchor="middle">knowledge_base_id</text>
+  <text x="220" y="320" font-size="12" fill="#1F1A14" text-anchor="middle" font-style="italic">可选 enable_web</text>
+
+  <rect x="400" y="220" width="280" height="110" fill="#FFFFFF" stroke="#1F1A14" stroke-width="2" rx="4"/>
+  <text x="540" y="252" font-size="18" font-weight="700" fill="#1F1A14" text-anchor="middle">历史会话</text>
+  <text x="540" y="278" font-size="13" fill="#1F1A14" text-anchor="middle">最近 6 条</text>
+  <text x="540" y="300" font-size="13" fill="#1F1A14" text-anchor="middle">{role, content}</text>
+  <text x="540" y="320" font-size="12" fill="#1F1A14" text-anchor="middle" font-style="italic">注入到 prompt</text>
+
+  <rect x="720" y="220" width="280" height="110" fill="#FFFFFF" stroke="#1F1A14" stroke-width="2" rx="4"/>
+  <text x="860" y="252" font-size="18" font-weight="700" fill="#1F1A14" text-anchor="middle">KB 元数据</text>
+  <text x="860" y="278" font-size="13" fill="#1F1A14" text-anchor="middle">collection_name</text>
+  <text x="860" y="300" font-size="13" fill="#1F1A14" text-anchor="middle">embedding_model / dim</text>
+  <text x="860" y="320" font-size="12" fill="#1F1A14" text-anchor="middle" font-style="italic">未选 KB → 直接 direct</text>
+
+  <rect x="1040" y="220" width="280" height="110" fill="#FFFFFF" stroke="#1F1A14" stroke-width="2" rx="4"/>
+  <text x="1180" y="252" font-size="18" font-weight="700" fill="#1F1A14" text-anchor="middle">外部开关</text>
+  <text x="1180" y="278" font-size="13" fill="#1F1A14" text-anchor="middle">payload.enable_web</text>
+  <text x="1180" y="300" font-size="13" fill="#1F1A14" text-anchor="middle">settings.enable_web_search</text>
+  <text x="1180" y="320" font-size="12" fill="#1F1A14" text-anchor="middle" font-style="italic">都 True 才允许 web</text>
+
+  <!-- ============== CLASSIFY NODE ============== -->
+  <text x="80" y="385" font-size="18" font-weight="700" fill="#1F1A14" letter-spacing="3">意图分类 · classify</text>
+
+  <!-- big classify diamond-ish via two-tone rounded rect -->
+  <rect x="560" y="400" width="520" height="160" fill="#044D99" rx="6"/>
+  <text x="820" y="438" font-size="26" font-weight="700" fill="#FFFFFF" text-anchor="middle">classify 节点</text>
+  <text x="820" y="468" font-size="14" fill="#FFFFFF" text-anchor="middle">LLM 单次 JSON 路由：{intent, reason}</text>
+  <text x="820" y="494" font-size="13" fill="#FFFFFF" text-anchor="middle">CLASSIFY_PROMPT · temperature = 0</text>
+  <text x="820" y="520" font-size="12" fill="#FFFFFF" text-anchor="middle" font-style="italic">失败 → 启发式 fallback（关键词命中 web/direct）</text>
+  <text x="820" y="542" font-size="12" fill="#FFFFFF" text-anchor="middle" font-style="italic">仍未选 KB → intent=direct</text>
+
+  <!-- arrows from input to classify -->
+  <line x1="220" y1="330" x2="600" y2="398" stroke="#1F1A14" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="540" y1="330" x2="700" y2="398" stroke="#1F1A14" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="860" y1="330" x2="820" y2="398" stroke="#1F1A14" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="1180" y1="330" x2="1040" y2="398" stroke="#1F1A14" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- ============== ROUTING ============== -->
+  <text x="80" y="600" font-size="18" font-weight="700" fill="#1F1A14" letter-spacing="3">条件路由 · _route_after_classify</text>
+
+  <rect x="80" y="620" width="280" height="100" fill="#FFFFFF" stroke="#044D99" stroke-width="3" rx="4"/>
+  <text x="220" y="652" font-size="20" font-weight="700" fill="#044D99" text-anchor="middle">intent = "rag"</text>
+  <text x="220" y="678" font-size="13" fill="#1F1A14" text-anchor="middle">本地知识库问答</text>
+  <text x="220" y="700" font-size="12" fill="#1F1A14" text-anchor="middle" font-style="italic">→ retrieve</text>
+
+  <rect x="400" y="620" width="280" height="100" fill="#FFFFFF" stroke="#044D99" stroke-width="3" rx="4"/>
+  <text x="540" y="652" font-size="20" font-weight="700" fill="#044D99" text-anchor="middle">intent = "web"</text>
+  <text x="540" y="678" font-size="13" fill="#1F1A14" text-anchor="middle">需要联网新鲜信息</text>
+  <text x="540" y="700" font-size="12" fill="#1F1A14" text-anchor="middle" font-style="italic">→ web_search</text>
+
+  <rect x="720" y="620" width="280" height="100" fill="#FFFFFF" stroke="#044D99" stroke-width="3" rx="4"/>
+  <text x="860" y="652" font-size="20" font-weight="700" fill="#044D99" text-anchor="middle">intent = "direct"</text>
+  <text x="860" y="678" font-size="13" fill="#1F1A14" text-anchor="middle">闲聊 / 通用知识</text>
+  <text x="860" y="700" font-size="12" fill="#1F1A14" text-anchor="middle" font-style="italic">→ direct_answer</text>
+
+  <rect x="1040" y="620" width="280" height="100" fill="#FFFFFF" stroke="#044D99" stroke-width="3" rx="4"/>
+  <text x="1180" y="652" font-size="20" font-weight="700" fill="#044D99" text-anchor="middle">intent = "hybrid"</text>
+  <text x="1180" y="678" font-size="13" fill="#1F1A14" text-anchor="middle">本地 + 联网融合</text>
+  <text x="1180" y="700" font-size="12" fill="#1F1A14" text-anchor="middle" font-style="italic">→ retrieve → web_search</text>
+
+  <!-- arrows from classify to routes -->
+  <line x1="700" y1="560" x2="220" y2="618" stroke="#1F1A14" stroke-width="3" marker-end="url(#arrow)"/>
+  <line x1="780" y1="560" x2="540" y2="618" stroke="#1F1A14" stroke-width="3" marker-end="url(#arrow)"/>
+  <line x1="860" y1="560" x2="860" y2="618" stroke="#1F1A14" stroke-width="3" marker-end="url(#arrow)"/>
+  <line x1="940" y1="560" x2="1180" y2="618" stroke="#1F1A14" stroke-width="3" marker-end="url(#arrow)"/>
+
+  <!-- ============== RETRIEVE / WEB / DIRECT NODES ============== -->
+  <text x="80" y="765" font-size="18" font-weight="700" fill="#1F1A14" letter-spacing="3">执行节点</text>
+
+  <!-- retrieve node -->
+  <rect x="80" y="785" width="380" height="170" fill="#04B24F" rx="6"/>
+  <text x="270" y="818" font-size="20" font-weight="700" fill="#FFFFFF" text-anchor="middle">retrieve</text>
+  <text x="270" y="846" font-size="14" fill="#FFFFFF" text-anchor="middle">HybridRetriever.retrieve()</text>
+  <text x="270" y="870" font-size="13" fill="#FFFFFF" text-anchor="middle">向量 + BM25 并行 → RRF → Rerank</text>
+  <text x="270" y="894" font-size="13" fill="#FFFFFF" text-anchor="middle">rerank_top_k=20 → final_top_k=5</text>
+  <text x="270" y="918" font-size="13" fill="#FFFFFF" text-anchor="middle">state.chunks · state.used_rag</text>
+  <text x="270" y="942" font-size="12" fill="#FFFFFF" text-anchor="middle" font-style="italic">hybrid 之后 → web_search</text>
+
+  <!-- web_search node -->
+  <rect x="500" y="785" width="380" height="170" fill="#04B24F" rx="6"/>
+  <text x="690" y="818" font-size="20" font-weight="700" fill="#FFFFFF" text-anchor="middle">web_search</text>
+  <text x="690" y="846" font-size="14" fill="#FFFFFF" text-anchor="middle">WebSearchFactory.get()</text>
+  <text x="690" y="870" font-size="13" fill="#FFFFFF" text-anchor="middle">Tavily 优先 / DuckDuckGo 兜底</text>
+  <text x="690" y="894" font-size="13" fill="#FFFFFF" text-anchor="middle">max_web_results · to_thread 不阻塞</text>
+  <text x="690" y="918" font-size="13" fill="#FFFFFF" text-anchor="middle">state.web_results · state.used_web</text>
+  <text x="690" y="942" font-size="12" fill="#FFFFFF" text-anchor="middle" font-style="italic">无 Key 或失败 → 空结果</text>
+
+  <!-- direct_answer node -->
+  <rect x="920" y="785" width="400" height="170" fill="#04B24F" rx="6"/>
+  <text x="1120" y="818" font-size="20" font-weight="700" fill="#FFFFFF" text-anchor="middle">direct_answer</text>
+  <text x="1120" y="846" font-size="14" fill="#FFFFFF" text-anchor="middle">ANSWER_DIRECT_PROMPT</text>
+  <text x="1120" y="870" font-size="13" fill="#FFFFFF" text-anchor="middle">纯 LLM 回答，无任何外部引用</text>
+  <text x="1120" y="894" font-size="13" fill="#FFFFFF" text-anchor="middle">messages = [system + history + user]</text>
+  <text x="1120" y="918" font-size="13" fill="#FFFFFF" text-anchor="middle">state.sources = []</text>
+  <text x="1120" y="942" font-size="12" fill="#FFFFFF" text-anchor="middle" font-style="italic">直接 → generate</text>
+
+  <!-- arrows: rag route -> retrieve -->
+  <line x1="220" y1="720" x2="220" y2="783" stroke="#1F1A14" stroke-width="3" marker-end="url(#arrow)"/>
+  <!-- web route -> web_search -->
+  <line x1="540" y1="720" x2="690" y2="783" stroke="#1F1A14" stroke-width="3" marker-end="url(#arrow)"/>
+  <!-- direct route -> direct_answer -->
+  <line x1="860" y1="720" x2="1120" y2="783" stroke="#1F1A14" stroke-width="3" marker-end="url(#arrow)"/>
+  <!-- hybrid route -> retrieve -->
+  <line x1="1180" y1="720" x2="380" y2="783" stroke="#1F1A14" stroke-width="3" marker-end="url(#arrow)"/>
+  <!-- hybrid: retrieve -> web_search (second hop) -->
+  <polyline points="270,955 270,985 690,985 690,955" fill="none" stroke="#1F1A14" stroke-width="3" marker-end="url(#arrow)"/>
+  <text x="480" y="980" font-size="13" font-weight="700" fill="#1F1A14">hybrid 第二跳</text>
+
+  <!-- ============== BUILD_PROMPT + GENERATE ============== -->
+  <text x="80" y="1030" font-size="18" font-weight="700" fill="#1F1A14" letter-spacing="3">汇聚 · 生成 · 输出</text>
+
+  <!-- build_prompt -->
+  <rect x="80" y="1050" width="540" height="120" fill="#044D99" rx="6"/>
+  <text x="350" y="1082" font-size="20" font-weight="700" fill="#FFFFFF" text-anchor="middle">build_prompt</text>
+  <text x="350" y="1108" font-size="13" fill="#FFFFFF" text-anchor="middle">按 intent 选择模板：</text>
+  <text x="350" y="1130" font-size="13" fill="#FFFFFF" text-anchor="middle">ANSWER_WITH_CONTEXT · ANSWER_WEB · ANSWER_HYBRID</text>
+  <text x="350" y="1152" font-size="12" fill="#FFFFFF" text-anchor="middle" font-style="italic">构造 [n] 编号引用上下文 + 历史</text>
+
+  <!-- generate -->
+  <rect x="660" y="1050" width="320" height="120" fill="#044D99" rx="6"/>
+  <text x="820" y="1082" font-size="20" font-weight="700" fill="#FFFFFF" text-anchor="middle">generate</text>
+  <text x="820" y="1108" font-size="13" fill="#FFFFFF" text-anchor="middle">LLMFactory.stream_chat()</text>
+  <text x="820" y="1130" font-size="13" fill="#FFFFFF" text-anchor="middle">yield token 级</text>
+  <text x="820" y="1152" font-size="12" fill="#FFFFFF" text-anchor="middle" font-style="italic">_build_sources 拼装引用</text>
+
+  <!-- direct_arrow -->
+  <rect x="1020" y="1050" width="320" height="120" fill="#044D99" rx="6"/>
+  <text x="1180" y="1082" font-size="20" font-weight="700" fill="#FFFFFF" text-anchor="middle">direct → END</text>
+  <text x="1180" y="1108" font-size="13" fill="#FFFFFF" text-anchor="middle">stream → final → end</text>
+  <text x="1180" y="1130" font-size="13" fill="#FFFFFF" text-anchor="middle">sources=[]  · intent=direct</text>
+  <text x="1180" y="1152" font-size="12" fill="#FFFFFF" text-anchor="middle" font-style="italic">不走 retrieve / web</text>
+
+  <!-- arrows -->
+  <!-- retrieve -> build_prompt -->
+  <line x1="270" y1="955" x2="270" y2="1048" stroke="#1F1A14" stroke-width="3" marker-end="url(#arrow)"/>
+  <!-- web_search -> build_prompt -->
+  <line x1="690" y1="955" x2="350" y2="1048" stroke="#1F1A14" stroke-width="3" marker-end="url(#arrow)"/>
+  <!-- build_prompt -> generate -->
+  <line x1="620" y1="1110" x2="658" y2="1110" stroke="#1F1A14" stroke-width="3" marker-end="url(#arrow)"/>
+  <!-- direct_answer -> END (direct) -->
+  <line x1="1120" y1="955" x2="1180" y2="1048" stroke="#1F1A14" stroke-width="3" marker-end="url(#arrow)"/>
+
+  <!-- ============== SSE EVENT TIMELINE ============== -->
+  <text x="80" y="1210" font-size="16" font-weight="700" fill="#1F1A14" letter-spacing="3">SSE 事件流（chat.py）</text>
+  <rect x="240" y="1192" width="160" height="28" fill="#FFFFFF" stroke="#1F1A14" stroke-width="2" rx="4"/>
+  <text x="320" y="1211" font-size="13" fill="#1F1A14" text-anchor="middle">intent</text>
+  <rect x="410" y="1192" width="160" height="28" fill="#FFFFFF" stroke="#1F1A14" stroke-width="2" rx="4"/>
+  <text x="490" y="1211" font-size="13" fill="#1F1A14" text-anchor="middle">sources</text>
+  <rect x="580" y="1192" width="160" height="28" fill="#FFFFFF" stroke="#1F1A14" stroke-width="2" rx="4"/>
+  <text x="660" y="1211" font-size="13" fill="#1F1A14" text-anchor="middle">token *</text>
+  <rect x="750" y="1192" width="160" height="28" fill="#FFFFFF" stroke="#1F1A14" stroke-width="2" rx="4"/>
+  <text x="830" y="1211" font-size="13" fill="#1F1A14" text-anchor="middle">meta</text>
+  <rect x="920" y="1192" width="160" height="28" fill="#FFFFFF" stroke="#1F1A14" stroke-width="2" rx="4"/>
+  <text x="1000" y="1211" font-size="13" fill="#1F1A14" text-anchor="middle">final</text>
+  <rect x="1090" y="1192" width="160" height="28" fill="#F61B27" rx="4"/>
+  <text x="1170" y="1211" font-size="13" font-weight="700" fill="#FFFFFF" text-anchor="middle">end</text>
+  <text x="1280" y="1211" font-size="13" font-weight="700" fill="#1F1A14">→ EventSourceResponse(ping=15)</text>
+</svg>

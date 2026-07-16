@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1640 1280" font-family="Noto Sans SC">
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="9" refY="4"
+            orient="auto" markerUnits="strokeWidth"><path d="M0 0 L10 4 L0 8 z"/></marker>
+  </defs>
+
+  <!-- canvas -->
+  <rect width="1640" height="1280" fill="#E4D2C4"/>
+
+  <!-- title -->
+  <text x="80" y="92" font-size="44" font-weight="700" fill="#1F1A14" letter-spacing="2">产品结构 · RAG 桌面浮窗系统</text>
+  <text x="80" y="128" font-size="18" font-weight="400" fill="#1F1A14" opacity="1">Vue3 + Tauri 桌面壳 / FastAPI 后端 / LangGraph Agent / 混合检索</text>
+  <line x1="80" y1="150" x2="1560" y2="150" stroke="#1F1A14" stroke-width="2"/>
+
+  <!-- ============== LAYER 1: USER + DESKTOP SHELL ============== -->
+  <text x="80" y="190" font-size="20" font-weight="700" fill="#1F1A14" letter-spacing="3">LAYER 1 · 用户与桌面壳</text>
+
+  <!-- user block -->
+  <rect x="80" y="210" width="220" height="120" fill="#FFFFFF" stroke="#1F1A14" stroke-width="2" rx="4"/>
+  <text x="190" y="248" font-size="22" font-weight="700" fill="#1F1A14" text-anchor="middle">用户</text>
+  <text x="190" y="278" font-size="14" fill="#1F1A14" text-anchor="middle">全局快捷键</text>
+  <text x="190" y="300" font-size="14" fill="#1F1A14" text-anchor="middle">Cmd/Ctrl+Shift+Space</text>
+  <text x="190" y="322" font-size="13" fill="#1F1A14" text-anchor="middle" font-style="italic">问答 · 上传 · 管理</text>
+
+  <!-- Tauri shell -->
+  <rect x="380" y="210" width="280" height="120" fill="#044D99" rx="4"/>
+  <text x="520" y="248" font-size="24" font-weight="700" fill="#FFFFFF" text-anchor="middle">Tauri 2.x 桌面壳</text>
+  <text x="520" y="280" font-size="14" fill="#FFFFFF" text-anchor="middle">悬浮球 · 无边框窗口</text>
+  <text x="520" y="302" font-size="14" fill="#FFFFFF" text-anchor="middle">全局快捷键 · 系统托盘</text>
+  <text x="520" y="324" font-size="13" fill="#FFFFFF" text-anchor="middle" font-style="italic">位置记忆 · 窗口置顶</text>
+
+  <!-- arrow user -> tauri -->
+  <line x1="300" y1="270" x2="378" y2="270" stroke="#1F1A14" stroke-width="3" marker-end="url(#arrow)"/>
+
+  <!-- ============== LAYER 2: FRONTEND ============== -->
+  <text x="80" y="380" font-size="20" font-weight="700" fill="#1F1A14" letter-spacing="3">LAYER 2 · 前端（Vue3 + Pinia）</text>
+
+  <rect x="80" y="400" width="1580" height="170" fill="#FFFFFF" stroke="#1F1A14" stroke-width="2" rx="4"/>
+  <text x="100" y="430" font-size="16" font-weight="700" fill="#1F1A14">视图层 Views</text>
+  <rect x="100" y="445" width="170" height="50" fill="#04B24F" rx="4"/>
+  <text x="185" y="476" font-size="14" font-weight="700" fill="#FFFFFF" text-anchor="middle">ChatView</text>
+  <rect x="290" y="445" width="170" height="50" fill="#04B24F" rx="4"/>
+  <text x="375" y="476" font-size="14" font-weight="700" fill="#FFFFFF" text-anchor="middle">KBView</text>
+  <rect x="480" y="445" width="170" height="50" fill="#04B24F" rx="4"/>
+  <text x="565" y="476" font-size="14" font-weight="700" fill="#FFFFFF" text-anchor="middle">DocsView</text>
+  <rect x="670" y="445" width="170" height="50" fill="#04B24F" rx="4"/>
+  <text x="755" y="476" font-size="14" font-weight="700" fill="#FFFFFF" text-anchor="middle">SettingsView</text>
+  <rect x="860" y="445" width="170" height="50" fill="#04B24F" rx="4"/>
+  <text x="945" y="476" font-size="14" font-weight="700" fill="#FFFFFF" text-anchor="middle">SearchView</text>
+
+  <text x="100" y="525" font-size="16" font-weight="700" fill="#1F1A14">组件 Components</text>
+  <rect x="100" y="538" width="135" height="22" fill="#E4D2C4" stroke="#1F1A14" stroke-width="1" rx="3"/>
+  <text x="167" y="554" font-size="12" fill="#1F1A14" text-anchor="middle">ChatPanel</text>
+  <rect x="245" y="538" width="135" height="22" fill="#E4D2C4" stroke="#1F1A14" stroke-width="1" rx="3"/>
+  <text x="312" y="554" font-size="12" fill="#1F1A14" text-anchor="middle">FloatingBall</text>
+  <rect x="390" y="538" width="135" height="22" fill="#E4D2C4" stroke="#1F1A14" stroke-width="1" rx="3"/>
+  <text x="457" y="554" font-size="12" fill="#1F1A14" text-anchor="middle">MessageBubble</text>
+  <rect x="535" y="538" width="150" height="22" fill="#E4D2C4" stroke="#1F1A14" stroke-width="1" rx="3"/>
+  <text x="610" y="554" font-size="12" fill="#1F1A14" text-anchor="middle">KnowledgePicker</text>
+  <rect x="695" y="538" width="155" height="22" fill="#E4D2C4" stroke="#1F1A14" stroke-width="1" rx="3"/>
+  <text x="772" y="554" font-size="12" fill="#1F1A14" text-anchor="middle">ConversationList</text>
+
+  <text x="880" y="525" font-size="16" font-weight="700" fill="#1F1A14">状态 Pinia · HTTP ofetch</text>
+  <rect x="880" y="538" width="135" height="22" fill="#E4D2C4" stroke="#1F1A14" stroke-width="1" rx="3"/>
+  <text x="947" y="554" font-size="12" fill="#1F1A14" text-anchor="middle">settings</text>
+  <rect x="1025" y="538" width="160" height="22" fill="#E4D2C4" stroke="#1F1A14" stroke-width="1" rx="3"/>
+  <text x="1105" y="554" font-size="12" fill="#1F1A14" text-anchor="middle">knowledgeBase</text>
+  <rect x="1195" y="538" width="135" height="22" fill="#E4D2C4" stroke="#1F1A14" stroke-width="1" rx="3"/>
+  <text x="1262" y="554" font-size="12" fill="#1F1A14" text-anchor="middle">chat · SSE</text>
+  <rect x="1340" y="538" width="135" height="22" fill="#E4D2C4" stroke="#1F1A14" stroke-width="1" rx="3"/>
+  <text x="1407" y="554" font-size="12" fill="#1F1A14" text-anchor="middle">UI · Naive UI</text>
+
+  <!-- arrow tauri -> frontend -->
+  <line x1="520" y1="330" x2="520" y2="398" stroke="#1F1A14" stroke-width="3" marker-end="url(#arrow)"/>
+
+  <!-- ============== LAYER 3: API GATEWAY ============== -->
+  <text x="80" y="610" font-size="20" font-weight="700" fill="#1F1A14" letter-spacing="3">LAYER 3 · FastAPI 网关（/api/v1）</text>
+
+  <rect x="80" y="630" width="380" height="120" fill="#044D99" rx="4"/>
+  <text x="270" y="660" font-size="18" font-weight="700" fill="#FFFFFF" text-anchor="middle">knowledge_bases</text>
+  <text x="270" y="686" font-size="13" fill="#FFFFFF" text-anchor="middle">CRUD · stats</text>
+  <text x="270" y="708" font-size="13" fill="#FFFFFF" text-anchor="middle">/api/v1/knowledge-bases</text>
+  <text x="270" y="732" font-size="12" fill="#FFFFFF" text-anchor="middle" font-style="italic">KB 元数据 · 切换</text>
+
+  <rect x="500" y="630" width="380" height="120" fill="#044D99" rx="4"/>
+  <text x="690" y="660" font-size="18" font-weight="700" fill="#FFFFFF" text-anchor="middle">documents</text>
+  <text x="690" y="686" font-size="13" fill="#FFFFFF" text-anchor="middle">上传 · 列表 · 删除 · 重试</text>
+  <text x="690" y="708" font-size="13" fill="#FFFFFF" text-anchor="middle">/api/v1/.../documents</text>
+  <text x="690" y="732" font-size="12" fill="#FFFFFF" text-anchor="middle" font-style="italic">后台入库 BackgroundTasks</text>
+
+  <rect x="920" y="630" width="280" height="120" fill="#044D99" rx="4"/>
+  <text x="1060" y="660" font-size="18" font-weight="700" fill="#FFFFFF" text-anchor="middle">search</text>
+  <text x="1060" y="686" font-size="13" fill="#FFFFFF" text-anchor="middle">POST /search</text>
+  <text x="1060" y="708" font-size="13" fill="#FFFFFF" text-anchor="middle">直接混合检索</text>
+  <text x="1060" y="732" font-size="12" fill="#FFFFFF" text-anchor="middle" font-style="italic">Debug / 评测</text>
+
+  <rect x="1240" y="630" width="420" height="120" fill="#F61B27" rx="4"/>
+  <text x="1450" y="660" font-size="18" font-weight="700" fill="#FFFFFF" text-anchor="middle">chat · SSE 流式</text>
+  <text x="1450" y="686" font-size="13" fill="#FFFFFF" text-anchor="middle">POST /chat · /chat/sync</text>
+  <text x="1450" y="708" font-size="13" fill="#FFFFFF" text-anchor="middle">intent → sources → token* → meta → final</text>
+  <text x="1450" y="732" font-size="12" fill="#FFFFFF" text-anchor="middle" font-style="italic">多轮会话 · 引用溯源</text>
+
+  <!-- arrow frontend -> api -->
+  <line x1="870" y1="570" x2="870" y2="628" stroke="#1F1A14" stroke-width="3" marker-end="url(#arrow)"/>
+
+  <!-- ============== LAYER 4: SERVICES ============== -->
+  <text x="80" y="800" font-size="20" font-weight="700" fill="#1F1A14" letter-spacing="3">LAYER 4 · 服务层（services/）</text>
+
+  <rect x="80" y="820" width="380" height="180" fill="#FFFFFF" stroke="#1F1A14" stroke-width="2" rx="4"/>
+  <text x="270" y="852" font-size="18" font-weight="700" fill="#1F1A14" text-anchor="middle">IngestService</text>
+  <text x="270" y="878" font-size="13" fill="#1F1A14" text-anchor="middle">文件 → 解析 → 切片 → 向量化</text>
+  <text x="270" y="900" font-size="13" fill="#1F1A14" text-anchor="middle">Chroma + BM25 双写</text>
+  <text x="270" y="922" font-size="13" fill="#1F1A14" text-anchor="middle">doc_count / chunk_count</text>
+  <text x="270" y="944" font-size="13" fill="#1F1A14" text-anchor="middle">retry · delete · delete_kb</text>
+  <text x="270" y="980" font-size="12" fill="#1F1A14" text-anchor="middle" font-style="italic">asyncio.to_thread 不阻塞</text>
+
+  <rect x="500" y="820" width="380" height="180" fill="#FFFFFF" stroke="#1F1A14" stroke-width="2" rx="4"/>
+  <text x="690" y="852" font-size="18" font-weight="700" fill="#1F1A14" text-anchor="middle">HybridRetriever</text>
+  <text x="690" y="878" font-size="13" fill="#1F1A14" text-anchor="middle">向量 + BM25 → 并行</text>
+  <text x="690" y="900" font-size="13" fill="#1F1A14" text-anchor="middle">RRF 融合（k=60）</text>
+  <text x="690" y="922" font-size="13" fill="#1F1A14" text-anchor="middle">BGE-Reranker 重排</text>
+  <text x="690" y="944" font-size="13" fill="#1F1A14" text-anchor="middle">返回 Top-K + sources</text>
+  <text x="690" y="980" font-size="12" fill="#1F1A14" text-anchor="middle" font-style="italic">最终给 generate 节点</text>
+
+  <rect x="920" y="820" width="740" height="180" fill="#FFFFFF" stroke="#1F1A14" stroke-width="2" rx="4"/>
+  <text x="1290" y="852" font-size="18" font-weight="700" fill="#1F1A14" text-anchor="middle">RAGAgent · LangGraph StateGraph</text>
+  <text x="1290" y="878" font-size="13" fill="#1F1A14" text-anchor="middle">classify → {retrieve | web_search | direct_answer} → build_prompt → generate</text>
+  <text x="1290" y="900" font-size="13" fill="#1F1A14" text-anchor="middle">四类意图：rag / web / direct / hybrid</text>
+  <text x="1290" y="922" font-size="13" fill="#1F1A14" text-anchor="middle">astream → intent / sources / token / meta / done</text>
+  <text x="1290" y="944" font-size="13" fill="#1F1A14" text-anchor="middle">hybrid：先本地检索，再联网，融合引用</text>
+  <text x="1290" y="980" font-size="12" fill="#1F1A14" text-anchor="middle" font-style="italic">失败 fallback 启发式分类</text>
+
+  <!-- arrows api -> services -->
+  <line x1="270" y1="750" x2="270" y2="818" stroke="#1F1A14" stroke-width="3" marker-end="url(#arrow)"/>
+  <line x1="690" y1="750" x2="690" y2="818" stroke="#1F1A14" stroke-width="3" marker-end="url(#arrow)"/>
+  <line x1="1450" y1="750" x2="1290" y2="818" stroke="#1F1A14" stroke-width="3" marker-end="url(#arrow)"/>
+
+  <!-- ============== LAYER 5: MODELS + STORAGE ============== -->
+  <text x="80" y="1050" font-size="20" font-weight="700" fill="#1F1A14" letter-spacing="3">LAYER 5 · 模型与存储</text>
+
+  <rect x="80" y="1070" width="1580" height="180" fill="#FFFFFF" stroke="#1F1A14" stroke-width="2" rx="4"/>
+
+  <!-- Embeddings -->
+  <rect x="100" y="1090" width="220" height="80" fill="#04B24F" rx="4"/>
+  <text x="210" y="1118" font-size="16" font-weight="700" fill="#FFFFFF" text-anchor="middle">Embeddings</text>
+  <text x="210" y="1140" font-size="12" fill="#FFFFFF" text-anchor="middle">BGE-M3 (local)</text>
+  <text x="210" y="1160" font-size="12" fill="#FFFFFF" text-anchor="middle">OpenAI text-emb-3</text>
+
+  <!-- Rerankers -->
+  <rect x="340" y="1090" width="220" height="80" fill="#04B24F" rx="4"/>
+  <text x="450" y="1118" font-size="16" font-weight="700" fill="#FFFFFF" text-anchor="middle">Rerankers</text>
+  <text x="450" y="1140" font-size="12" fill="#FFFFFF" text-anchor="middle">BGE-Reranker-v2-m3</text>
+  <text x="450" y="1160" font-size="12" fill="#FFFFFF" text-anchor="middle">Cross-Encoder</text>
+
+  <!-- LLM -->
+  <rect x="580" y="1090" width="240" height="80" fill="#04B24F" rx="4"/>
+  <text x="700" y="1118" font-size="16" font-weight="700" fill="#FFFFFF" text-anchor="middle">LLM (OpenAI 兼容)</text>
+  <text x="700" y="1140" font-size="12" fill="#FFFFFF" text-anchor="middle">GPT-4o-mini · DeepSeek</text>
+  <text x="700" y="1160" font-size="12" fill="#FFFFFF" text-anchor="middle">自定义 base_url</text>
+
+  <!-- Splitters -->
+  <rect x="840" y="1090" width="180" height="80" fill="#04B24F" rx="4"/>
+  <text x="930" y="1118" font-size="16" font-weight="700" fill="#FFFFFF" text-anchor="middle">Splitters</text>
+  <text x="930" y="1140" font-size="12" fill="#FFFFFF" text-anchor="middle">Recursive</text>
+  <text x="930" y="1160" font-size="12" fill="#FFFFFF" text-anchor="middle">chunk 600 / 120</text>
+
+  <!-- Loaders -->
+  <rect x="1040" y="1090" width="180" height="80" fill="#04B24F" rx="4"/>
+  <text x="1130" y="1118" font-size="16" font-weight="700" fill="#FFFFFF" text-anchor="middle">Loaders</text>
+  <text x="1130" y="1140" font-size="12" fill="#FFFFFF" text-anchor="middle">PDF · DOCX · PPTX</text>
+  <text x="1130" y="1160" font-size="12" fill="#FFFFFF" text-anchor="middle">MD · TXT · CSV · XLSX</text>
+
+  <!-- Chroma + BM25 -->
+  <rect x="1240" y="1090" width="200" height="80" fill="#044D99" rx="4"/>
+  <text x="1340" y="1118" font-size="16" font-weight="700" fill="#FFFFFF" text-anchor="middle">ChromaDB</text>
+  <text x="1340" y="1140" font-size="12" fill="#FFFFFF" text-anchor="middle">collection / KB</text>
+  <text x="1340" y="1160" font-size="12" fill="#FFFFFF" text-anchor="middle">向量持久化</text>
+
+  <rect x="1460" y="1090" width="180" height="80" fill="#044D99" rx="4"/>
+  <text x="1550" y="1118" font-size="16" font-weight="700" fill="#FFFFFF" text-anchor="middle">BM25</text>
+  <text x="1550" y="1140" font-size="12" fill="#FFFFFF" text-anchor="middle">rank_bm25 + jieba</text>
+  <text x="1550" y="1160" font-size="12" fill="#FFFFFF" text-anchor="middle">Pickle 持久化</text>
+
+  <!-- data dir note -->
+  <text x="100" y="1200" font-size="13" font-weight="700" fill="#1F1A14">本地持久化 data/</text>
+  <rect x="245" y="1185" width="100" height="22" fill="#E4D2C4" stroke="#1F1A14" stroke-width="1" rx="3"/>
+  <text x="295" y="1200" font-size="12" fill="#1F1A14" text-anchor="middle">chroma/</text>
+  <rect x="355" y="1185" width="100" height="22" fill="#E4D2C4" stroke="#1F1A14" stroke-width="1" rx="3"/>
+  <text x="405" y="1200" font-size="12" fill="#1F1A14" text-anchor="middle">bm25/</text>
+  <rect x="465" y="1185" width="110" height="22" fill="#E4D2C4" stroke="#1F1A14" stroke-width="1" rx="3"/>
+  <text x="520" y="1200" font-size="12" fill="#1F1A14" text-anchor="middle">uploads/</text>
+  <rect x="585" y="1185" width="130" height="22" fill="#E4D2C4" stroke="#1F1A14" stroke-width="1" rx="3"/>
+  <text x="650" y="1200" font-size="12" fill="#1F1A14" text-anchor="middle">metadata.db</text>
+
+  <text x="760" y="1200" font-size="13" font-weight="700" fill="#1F1A14">外部</text>
+  <rect x="810" y="1185" width="160" height="22" fill="#F61B27" rx="3"/>
+  <text x="890" y="1200" font-size="12" fill="#FFFFFF" text-anchor="middle">Tavily 联网（默认）</text>
+  <rect x="980" y="1185" width="200" height="22" fill="#F61B27" rx="3"/>
+  <text x="1080" y="1200" font-size="12" fill="#FFFFFF" text-anchor="middle">DuckDuckGo（兜底 · 无 Key）</text>
+  <rect x="1190" y="1185" width="170" height="22" fill="#F61B27" rx="3"/>
+  <text x="1275" y="1200" font-size="12" fill="#FFFFFF" text-anchor="middle">OpenAI / DeepSeek</text>
+
+  <!-- arrows from services to models/storage -->
+  <line x1="270" y1="1000" x2="270" y2="1068" stroke="#1F1A14" stroke-width="3" marker-end="url(#arrow)"/>
+  <line x1="690" y1="1000" x2="690" y2="1068" stroke="#1F1A14" stroke-width="3" marker-end="url(#arrow)"/>
+  <line x1="1290" y1="1000" x2="1290" y2="1068" stroke="#1F1A14" stroke-width="3" marker-end="url(#arrow)"/>
+</svg>

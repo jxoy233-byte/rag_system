@@ -1,0 +1,57 @@
+# Python
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+ENV/
+**/.env
+**/.env.local
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.log
+
+# Node
+node_modules/
+**/node_modules/
+pnpm-lock.yaml
+yarn.lock
+.npm/
+.pnpm-store/
+
+# Frontend build
+frontend/dist/
+frontend/.vite/
+frontend/src-tauri/target/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+**/.DS_Store
+
+# Data (local persistence)
+data/
+**/data/
+
+backend/rag_system_backend.egg-info/
+backend/.venv/
+
+# Local model snapshots
+.model/
+**/.model/
+
+# Test files
+backend/test_*.py

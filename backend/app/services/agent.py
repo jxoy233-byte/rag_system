@@ -58,14 +58,23 @@ class AgentEvent:
 CLASSIFY_PROMPT = """You are a query router for a RAG system. Given a user question,
 decide which path to take.
 
+CURRENT CONTEXT:
+- A knowledge base (KB) of user-uploaded documents is SELECTED right now.
+- Prefer "rag" whenever the question could plausibly be answered from the KB.
+  The user chose this KB on purpose — even general-knowledge questions should
+  try the docs first (the LLM can then say "your docs don't cover this").
+
 Options:
-- "rag": question is about user-provided documents (e.g., "summarize my PDF",
-  "what does the manual say about X", "in my notes").
-- "web": question asks for fresh/external info (news, current events, lookup).
-- "direct": casual chat, chitchat, math, coding, general knowledge not tied to
-  any document.
-- "hybrid": clearly needs both local docs AND web (e.g., compare my notes with
-  latest info).
+- "rag": question is about user-provided documents, OR could be answered from the KB.
+  Default choice whenever a KB is selected. Pick this unless the question clearly
+  requires fresh/external info the KB cannot have.
+- "web": question asks for fresh/external info (news, current events, real-time
+  lookup, prices, weather) that the KB definitely cannot contain.
+- "direct": ONLY for casual chitchat / greetings that have nothing to do with the
+  user's documents (e.g., "你好", "你是谁", "thanks"). Never pick this for math /
+  coding / definitions when a KB is selected.
+- "hybrid": clearly needs BOTH local docs AND web (e.g., "compare my notes with
+  latest research").
 
 Reply with JSON only: {{"intent": "<rag|web|direct|hybrid>", "reason": "<short>"}}
 
@@ -202,32 +211,38 @@ class RAGAgent:
             state["intent"] = "direct"
             return state
 
+        # KB is selected — this is the default fallback whenever LLM classification
+        # can't be parsed, or the whole classify call fails. The user explicitly
+        # picked this KB, so we should attempt RAG by default.
+        default_intent = "rag"
+
         try:
             prompt = CLASSIFY_PROMPT.format(question=question)
             raw = await LLMFactory.chat(
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.0,
             )
-            intent = "rag"
             try:
                 data = json.loads(self._extract_json(raw))
                 # data 可能是 JSON 字符串（如 LLM 直接返回 "intent"）而非对象
-                intent = data.get("intent", "rag") if isinstance(data, dict) else "rag"
+                intent = data.get("intent", default_intent) if isinstance(data, dict) else default_intent
                 if intent not in {"rag", "web", "direct", "hybrid"}:
-                    intent = "rag"
+                    intent = default_intent
             except Exception:
-                # Fallback heuristic
+                # Fallback heuristic — when KB is selected, the safe default is "rag"
+                # so we don't silently skip retrieval. Only override to "web" if the
+                # question explicitly demands fresh/external info.
                 q = question.lower()
-                if any(k in q for k in ["搜索", "联网", "最新", "新闻", "search"]):
+                if any(k in q for k in ["搜索", "联网", "最新", "新闻", "今天", "今年", "search", "latest"]):
                     intent = "web"
-                elif any(k in q for k in ["你好", "hi", "hello", "你是谁", "thanks"]):
+                elif any(k in q for k in ["你好", "hi", "hello", "你是谁", "thanks", "谢谢"]):
                     intent = "direct"
                 else:
-                    intent = "rag"
+                    intent = default_intent
             state["intent"] = intent
         except Exception as e:
-            logger.warning("classify failed, fallback to direct: {}", e)
-            state["intent"] = "direct"
+            logger.warning("classify failed, fallback to rag: {}", e)
+            state["intent"] = default_intent
         return state
 
     async def _retrieve_node(self, state: AgentState) -> AgentState:

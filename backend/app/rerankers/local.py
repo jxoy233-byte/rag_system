@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 
@@ -22,13 +23,36 @@ class ScoredDoc:
 
 
 class LocalReranker:
-     """BGE-Reranker v2 M3，懒加载。"""
+     """BGE-Reranker v2 M3，懒加载 + 进程级单例。
+
+     重型 cross-encoder 模型 (~280MB) 加载成本高；
+     之前每路 retrieve 都新建一个实例，multi-query 下会重复加载 4 次。
+     改成 class 级缓存：所有 retrieve / 所有 chat 共享同一份模型权重。
+     """
+
+     _shared: "LocalReranker | None" = None
+     # 进程级锁：多线程并发首次加载时只让一个线程执行；其余等锁。
+     # 共享实例解决了重复创建问题，但 _ensure() 内部的 check-then-load
+     # 在 4 路 multi-query 并发下还是会 race（4 个线程同时看到 _model is None）。
+     _load_lock = threading.Lock()
 
      def __init__(self, model_name: str | None = None) -> None:
          s = get_settings()
          self.model_name = model_name or s.local_rerank_model
          self._resolved_path: str | None = None
          self._model = None
+
+     @classmethod
+     def shared(cls) -> "LocalReranker":
+         """获取（或懒初始化）进程级共享实例。"""
+         if cls._shared is None:
+             cls._shared = cls()
+         return cls._shared
+
+     @classmethod
+     def reset_shared(cls) -> None:
+         """测试 / 切换 model_name 时清理共享实例。"""
+         cls._shared = None
 
      def _resolve_path(self) -> str:
          if self._resolved_path is None:
@@ -45,9 +69,12 @@ class LocalReranker:
          return self._resolved_path
 
      def _ensure(self):
-         if self._model is None:
-             # 把 HF model_id 解析成本地目录（.model/ → HF cache → 下载），
-             # 然后再交给 FlagEmbedding / CrossEncoder。
+         # 双重检查锁：先无锁快路径，已加载直接返回。
+         if self._model is not None:
+             return self._model
+         with self._load_lock:
+             if self._model is not None:
+                 return self._model
              model_path = self._resolve_path()
              # 优先尝试 FlagEmbedding；如果加载后 compute_score 失败
              # （常见原因是 transformers 新版本删了 tokenizer.prepare_for_model），
@@ -57,7 +84,6 @@ class LocalReranker:
                  from FlagEmbedding import FlagReranker
 
                  m = FlagReranker(model_path, use_fp16=False)
-                 # smoke test：用一对很短的句子试打分，捕获 API 兼容问题
                  try:
                      _ = m.compute_score([["ping", "pong"]], normalize=True)
                      flag_model = m

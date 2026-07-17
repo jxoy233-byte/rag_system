@@ -61,6 +61,9 @@ class Settings(BaseSettings):
     local_rerank_model: str = "BAAI/bge-reranker-base"
     rerank_top_k: int = 20
     final_top_k: int = 5
+    # 父子切片下，rerank 后是否做 parent_collapse（同一 parent 的多个 child 合并为 1 个 parent 块）。
+    # 关掉会返回多个 child（重复 parent 内容），主要用于调试。
+    parent_collapse: bool = True
 
     # ===== Web Search =====
     tavily_api_key: str = ""
@@ -96,6 +99,16 @@ class Settings(BaseSettings):
     # ===== Agent =====
     enable_multi_query: bool = True
     enable_hyde: bool = False
+    enable_relevance_check: bool = True
+    # doc-level 预筛选：在 chunk-level 检索前先 BM25(title+filename+summary) 找出相关文档，
+    # 给这些文档里的 chunk 在最终 rerank 分数上做 soft boost（×1.2）。
+    # 关闭后 chunk-level 检索结果不变，只是少了 doc-level 优先级信号。
+    enable_doc_index: bool = True
+    doc_index_top_k: int = 3
+    # KB→Web 自动兜底：KB 检索为空（或 relevance_check 全不相关）时，
+    # 自动触发 web search；web 也空则拒绝回答（"暂未收录"）。
+    # 关闭后直接拒绝（不消耗 web 配额，但用户拿不到 web 答案）。
+    enable_kb_web_fallback: bool = True
 
     # ===== Image Description =====
     # 留空使用本地 VLM；填写则走 OpenAI 兼容接口

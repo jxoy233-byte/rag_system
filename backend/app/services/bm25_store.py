@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pickle
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -23,6 +24,10 @@ class BM25Store:
      """轻量 BM25 存储，按知识库隔离。"""
 
      _cache: dict[str, "BM25Store"] = {}
+     # for_kb() 是多线程入口：multi-query 4 路并发时 4 个线程会同时调用，
+     # 之前 dict 的 check-then-set 模式在 GIL 下也能 race，导致 4 个实例
+     # 同时 _load() / _rebuild()（同一份 pickle 加载 4 次 + 全文 jieba tokenize 4 次）。
+     _cache_lock = threading.Lock()
 
      def __init__(self, knowledge_base_id: int) -> None:
          self.kb_id = knowledge_base_id
@@ -35,9 +40,39 @@ class BM25Store:
 
      @classmethod
      def for_kb(cls, kb_id: int) -> "BM25Store":
-         if kb_id not in cls._cache:
-             cls._cache[kb_id] = cls(kb_id)
+         # 双重检查锁：fast path 不持锁，已缓存直接返回。
+         if kb_id in cls._cache:
+             return cls._cache[kb_id]
+         with cls._cache_lock:
+             if kb_id not in cls._cache:
+                 cls._cache[kb_id] = cls(kb_id)
          return cls._cache[kb_id]
+
+     @classmethod
+     def warmup_all(cls) -> None:
+         """启动时调用一次：把磁盘上所有 KB 的 pickle 加载并预热 jieba。
+
+         之前 chat 第一次触发 for_kb() 时会：
+         1. 加载 pickle（I/O）
+         2. _rebuild() → 对每个 doc 调 jieba.cut() 全文 tokenize
+         多 KB + 多线程并发时这两步都重复 4 次，体感卡死。
+         """
+         # 1. 先单独 warm 一下 jieba，避免 4 线程抢 dict 初始化
+         try:
+             list(jieba.cut("warmup"))
+         except Exception:
+             pass
+         # 2. 串行加载所有 KB 的 pickle + rebuild（不并发，避免重复 tokenize）
+         s = get_settings()
+         if not s.bm25_index_dir.exists():
+             return
+         for pkl in sorted(s.bm25_index_dir.glob("kb_*.pkl")):
+             try:
+                 kb_id = int(pkl.stem.split("_", 1)[1])
+             except (ValueError, IndexError):
+                 continue
+             # 直接构造 + 走 _load()；不绕 cache 因为 cache 还没初始化
+             cls.for_kb(kb_id)
 
      # ===== persistence =====
 

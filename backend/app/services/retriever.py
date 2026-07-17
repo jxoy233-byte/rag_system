@@ -22,6 +22,7 @@ class RetrievedChunk:
      vector_score: float = 0.0
      bm25_score: float = 0.0
      rerank_score: float | None = None
+     raw_score: float | None = None  # boost 前的原始相关度（0~1），用于 sources 展示
      source: str = "vector"  # vector / bm25 / fused
 
 
@@ -66,8 +67,10 @@ class HybridRetriever:
 
      @property
      def reranker(self) -> LocalReranker:
+         # 用进程级共享实例：cross-encoder 模型 ~280MB，加载成本高，
+         # 之前每路 retrieve 都新建实例，multi-query 下会被重复加载 N 次。
          if self._reranker is None:
-             self._reranker = LocalReranker()
+             self._reranker = LocalReranker.shared()
          return self._reranker
 
      async def retrieve(
@@ -102,7 +105,73 @@ class HybridRetriever:
                      fused[idx].rerank_score = float(score)
              fused.sort(key=lambda c: (c.rerank_score or 0.0), reverse=True)
 
+         # 父子切片下做 parent_collapse：把同一 parent 的多个 child 合并成单个 parent 块，
+         # 保留分数最高的那个 child 作为锚点。最终 LLM 看到的是完整 parent 全文，
+         # 而不是孤立的 250 字片段 —— 上下文更全。
+         if s.parent_collapse:
+             fused = self._parent_collapse(fused)
+
          return fused[:k]
+
+     def _parent_collapse(self, chunks: list[RetrievedChunk]) -> list[RetrievedChunk]:
+         """把同一 parent 的多个 child 合并成单个 parent 块。
+
+         规则：
+         - 用 metadata.parent_id 分组；空 parent_id 视为独立（不合并，老 chunk）
+         - 同 parent 取 rerank_score 最高的 child 作为锚点（用它的 score / rerank_score）
+         - text 替换为 metadata.parent_text（完整 parent 全文）
+         - id 用锚点 child 的 id（保持 chunk_id 可追溯）+ 加 `parent:` 前缀避免重复
+         - source 标记为 "parent"（区分于 "vector" / "bm25" / "fused"）
+         - 不在原 chunks 顺序上的合并：保留按 rerank_score 降序，方便后续 top-k 截断
+         """
+         if not chunks:
+             return chunks
+         # 第一次扫：找每个 parent 的最高分 child
+         best_by_parent: dict[str, RetrievedChunk] = {}
+         # 没 parent_id 的（老 chunk / 单层 splitter 输出）单独保留
+         no_parent: list[RetrievedChunk] = []
+         for c in chunks:
+             pid = (c.metadata or {}).get("parent_id") or ""
+             if not pid:
+                 no_parent.append(c)
+                 continue
+             score = c.rerank_score if c.rerank_score is not None else c.score
+             existing = best_by_parent.get(pid)
+             if existing is None:
+                 best_by_parent[pid] = c
+             else:
+                 ex_score = existing.rerank_score if existing.rerank_score is not None else existing.score
+                 if (score or 0.0) > (ex_score or 0.0):
+                     best_by_parent[pid] = c
+         # 第二次：把 best 替换成 parent 视图
+         collapsed: list[RetrievedChunk] = []
+         for pid, c in best_by_parent.items():
+             md = dict(c.metadata or {})
+             parent_text = md.get("parent_text") or c.text
+             # 用 parent_id 作为 id（同一个 parent 多次访问指向同一段，
+             # 前端打开 chunk 详情时按 id 找 — 实际我们这里 id 是 chunk_id，但前端
+             # 期望 id 唯一；改成 "parent:" + parent_id 即可保持唯一且指向 parent）
+             new_chunk = RetrievedChunk(
+                 id=f"parent:{pid}",
+                 text=parent_text,
+                 metadata={**md, "child_id": c.id, "is_parent": True},
+                 vector_score=c.vector_score,
+                 bm25_score=c.bm25_score,
+                 rerank_score=c.rerank_score,
+                 source="parent",
+             )
+             collapsed.append(new_chunk)
+         # 没 parent_id 的老 chunk 保留原样（向后兼容）
+         collapsed.extend(no_parent)
+         # 按 rerank_score / score 降序
+         collapsed.sort(
+             key=lambda c: (
+                 c.rerank_score if c.rerank_score is not None else c.score,
+                 c.score,
+             ),
+             reverse=True,
+         )
+         return collapsed
 
      def _rrf_fuse(
          self,

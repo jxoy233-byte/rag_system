@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import threading
 from typing import Protocol, runtime_checkable
 
 from app.core.config import Settings, get_settings
@@ -73,6 +74,10 @@ class EmbeddingFactory:
 class _BGEEmbeddings:
     """通过 FlagEmbedding 调用 BGE-M3，懒加载避免启动慢。"""
 
+    # 进程级锁：多线程并发首次访问时只让一个线程加载模型，
+    # 其余线程等锁；避免 SentenceTransformer / tqdm 在并发初始化时死锁。
+    _load_lock = threading.Lock()
+
     def __init__(self, model_name: str, device: str = "cpu", dim: int = 768) -> None:
         self.model_name = model_name
         self.device = device
@@ -95,27 +100,26 @@ class _BGEEmbeddings:
         return self._resolved_path
 
     def _ensure(self):
-        if self._model is None:
-            # 把 HF model_id 解析成本地目录（.model/ → HF cache → 下载），
-            # 然后再交给 FlagEmbedding / sentence_transformers；后续库内部
-            # 即便再走 HF 路径，也会因为本地有 config.json 而不再重复下载。
-            model_path = self._resolve_path()
-            # BGEM3FlagModel 是 bge-m3 专用架构 loader；其他 BGE 系列（base-zh、
-            # large-zh、small-zh 等 BertModel 架构）走 sentence-transformers。
-            # 用模型名判定而不是 try/except：try 路径在 encode 阶段才报错，错误信息
-            # 难懂且会污染日志。
-            if "bge-m3" in self.model_name.lower():
-                from FlagEmbedding import BGEM3FlagModel
+        # 双重检查锁：先无锁快路径，已加载直接返回；否则抢锁后再检查一次。
+        # asyncio.to_thread 把 encode 扔到多线程，4 路 multi-query 时
+        # 4 个线程会同时看到 _model is None 然后并发加载（之前会卡死/4× 内存）。
+        if self._model is not None:
+            return self._model
+        with self._load_lock:
+            if self._model is None:
+                model_path = self._resolve_path()
+                if "bge-m3" in self.model_name.lower():
+                    from FlagEmbedding import BGEM3FlagModel
 
-                self._model = BGEM3FlagModel(
-                    model_path,
-                    use_fp16=False,
-                    devices=self.device if self.device != "auto" else None,
-                )
-            else:
-                from sentence_transformers import SentenceTransformer
+                    self._model = BGEM3FlagModel(
+                        model_path,
+                        use_fp16=False,
+                        devices=self.device if self.device != "auto" else None,
+                    )
+                else:
+                    from sentence_transformers import SentenceTransformer
 
-                self._model = SentenceTransformer(model_path, device=self.device)
+                    self._model = SentenceTransformer(model_path, device=self.device)
         return self._model
 
     def _encode(self, texts: list[str]) -> list[list[float]]:

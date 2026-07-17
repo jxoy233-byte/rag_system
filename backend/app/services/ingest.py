@@ -15,6 +15,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.config import get_settings
 from app.embeddings.factory import EmbeddingFactory
+from app.llm.factory import LLMFactory
 from app.loaders import DocumentLoaderFactory
 from app.loaders.base import ImageInfo, LoadedDocument
 from app.models import Document, KnowledgeBase
@@ -27,6 +28,28 @@ from app.vectorstore import ChromaStore
 
 if TYPE_CHECKING:
     from app.loaders.base import LoadedDocument
+
+
+# 文档级摘要 prompt：~150-300 字，描述"这份文档主要讲什么"。
+# 与 chunk 级检索互不替代 —— doc 级用于"先筛哪些文档相关"，
+# chunk 级用于"在这份文档里挑哪些段落最匹配"。
+DOC_SUMMARY_PROMPT = """你为入库的文档写一段简短摘要，用于检索系统判断"这份文档是否相关"。
+
+文档文件名: {filename}
+文档标题: {title}
+
+文档正文（已截断到前 ~3000 字）:
+\"\"\"
+{preview}
+\"\"\"
+
+要求：
+- 用中文写（与正文同语种）。
+- 控制在 150-300 字内；信息密度要高，避免套话。
+- 概括：①文档主题/领域；②主要内容/章节类型；③关键概念、术语或数据点。
+- 不要逐字复述；不要写"本文档..."这种开场。
+- 如果正文明显被截断或无意义（仅元数据），只输出"EMPTY"。
+- 只输出摘要文本本身，不要任何标签或前缀。"""
 
 
 class IngestService:
@@ -88,6 +111,10 @@ class IngestService:
             # 切片 + 入库（同步）
             await asyncio.to_thread(self._ingest_chunks, kb, doc, loaded)
 
+            # 文档级摘要（异步 LLM 调用）—— 失败不影响主流程。
+            # 必须放在 status=ready 之前；否则摘要写入会被 status 分支跳过。
+            doc.summary = await self._generate_doc_summary(doc, loaded)
+
             doc.status = DocumentStatus.ready
             doc.error = None
         except Exception as e:  # pragma: no cover - runtime error path
@@ -98,6 +125,14 @@ class IngestService:
             await self._refresh_doc_count(kb)
             await self.session.commit()
             await self.session.refresh(doc)
+            # 文档入/退库后让 DocIndex 失效，下次 query 重新加载。
+            # 放在 commit 之后避免 doc.summary 还没写入就被读到旧值。
+            from app.services.doc_index import DocIndex
+
+            try:
+                DocIndex.invalidate(kb.id)
+            except Exception as e:  # pragma: no cover - cache best-effort
+                logger.warning("DocIndex.invalidate failed: {}", e)
         return doc
 
     async def _process_images(self, loaded: "LoadedDocument") -> "LoadedDocument":
@@ -141,6 +176,44 @@ class IngestService:
 
         return loaded
 
+    async def _generate_doc_summary(
+        self, doc: Document, loaded: "LoadedDocument"
+    ) -> str:
+        """为文档生成 ~150-300 字摘要。失败/正文为空时返回空串。
+
+        摘要用途：DocIndex 用它和 title/filename 一起建 BM25 索引，
+        在 chunk-level 检索前先判断"哪些文档相关"。
+        """
+        text = (loaded.text or "").strip()
+        if not text:
+            return ""
+
+        # 取前 ~3000 字作为摘要输入；超长文档不需要把全文都喂给 LLM。
+        preview = text[:3000]
+        if len(text) > 3000:
+            preview += "\n...（后续已截断）"
+
+        prompt = DOC_SUMMARY_PROMPT.format(
+            filename=doc.filename, title=doc.title, preview=preview
+        )
+        try:
+            summary = await LLMFactory.chat(
+                [{"role": "user", "content": prompt}],
+                temperature=0.0,
+            )
+        except Exception as e:
+            logger.warning("doc summary LLM failed for doc={}: {}", doc.id, e)
+            return ""
+
+        summary = (summary or "").strip()
+        # 模型偶尔只回 "EMPTY" —— 当作"这份文档没有可用摘要"。
+        if not summary or summary.upper() == "EMPTY":
+            return ""
+        # 极端 case：模型回一段 prompt 模板或太长，截断到 ~600 字避免 DB 体积膨胀。
+        if len(summary) > 600:
+            summary = summary[:600]
+        return summary
+
     def _replace_image_placeholders(
         self, loaded: "LoadedDocument", images: list[ImageInfo]
     ) -> None:
@@ -164,11 +237,19 @@ class IngestService:
     def _ingest_chunks(
         self, kb: KnowledgeBase, doc: Document, loaded: "LoadedDocument"
     ) -> None:
-        """切片并入库。"""
+        """切片并入库。
+
+        父子两段切片（ParentChildSplitter）：
+        - chunks 入库（Chroma + BM25）的都是 child（短，~250 字），用于 embedding/BM25 检索；
+        - child metadata 里带 parent_id / parent_index / parent_text，
+          retriever 在 rerank 后做 parent_collapse（同一 parent 的多个 child 只保留分数最高那个，
+          text 用 parent 全文替换）—— 这样 LLM 看到的是完整语义段，而不是孤立的 250 字片段。
+        """
         splitter = build_splitter(chunk_size=kb.chunk_size, chunk_overlap=kb.chunk_overlap)
         chunks = splitter.split(loaded)
         if not chunks:
             doc.chunk_count = 0
+            doc.parent_count = 0
             kb.chunk_count = len(BM25Store.for_kb(kb.id))
             return
 
@@ -182,6 +263,12 @@ class IngestService:
                 "doc_filename": doc.filename,
                 "page": c.page,
                 "section": c.section or "",
+                # 父子 chunk 元数据（ChildChunk 才有，普通 TextChunk 没有）
+                "parent_id": getattr(c, "parent_id", "") or "",
+                "parent_index": int(getattr(c, "parent_index", 0) or 0),
+                "child_index": int(getattr(c, "child_index", 0) or 0),
+                # parent 完整文本：retriever 在 parent_collapse 阶段用它替换 child.text
+                "parent_text": getattr(c, "parent_text", "") or "",
             }
             if c.metadata:
                 md.update({k: v for k, v in c.metadata.items() if v is not None})
@@ -206,13 +293,17 @@ class IngestService:
             ]
         )
 
+        # 统计 parent 数（去重后），比 chunk_count 少（每 parent 有 3-5 child）
+        parent_ids = {md.get("parent_id") for md in metadatas if md.get("parent_id")}
         doc.chunk_count = len(chunks)
+        doc.parent_count = len(parent_ids) if parent_ids else len(chunks)
         kb.chunk_count = bm25_count = len(bm25)
         logger.info(
-            "ingested doc={} kb={} chunks={} bm25_total={}",
+            "ingested doc={} kb={} children={} parents={} bm25_total={}",
             doc.id,
             kb.id,
             len(chunks),
+            doc.parent_count,
             bm25_count,
         )
 
@@ -238,6 +329,13 @@ class IngestService:
         kb.chunk_count = len(bm25)
         await self._refresh_doc_count(kb)
         await self.session.commit()
+        # 文档被删，DocIndex 该 kb 的 doc list 已变化。
+        from app.services.doc_index import DocIndex
+
+        try:
+            DocIndex.invalidate(kb_id)
+        except Exception as e:  # pragma: no cover - cache best-effort
+            logger.warning("DocIndex.invalidate failed: {}", e)
         try:
             file_path.unlink(missing_ok=True)
         except OSError as e:
@@ -252,6 +350,7 @@ class IngestService:
         ChromaStore(collection_name=kb.collection_name).delete_by_doc_id(doc.id)
         BM25Store.for_kb(kb.id).delete_by_doc_id(doc.id)
         doc.chunk_count = 0
+        doc.parent_count = 0
         doc.error = None
         doc.status = DocumentStatus.processing
         await self.session.commit()
@@ -263,6 +362,8 @@ class IngestService:
             if loaded.has_images():
                 loaded = await self._process_images(loaded)
             await asyncio.to_thread(self._ingest_chunks, kb, doc, loaded)
+            # 重新生成文档级摘要（文件可能已变 / 之前生成失败）
+            doc.summary = await self._generate_doc_summary(doc, loaded)
             doc.status = DocumentStatus.ready
         except Exception as e:
             logger.exception("retry ingest failed: {}", e)
@@ -276,12 +377,20 @@ class IngestService:
                     "failed to clean partial ingest for doc={}: {}", doc.id, cleanup_error
                 )
             doc.chunk_count = 0
+            doc.parent_count = 0
+            doc.summary = ""
             doc.status = DocumentStatus.failed
             doc.error = str(e)[:2000]
         finally:
             await self._refresh_doc_count(kb)
             await self.session.commit()
             await self.session.refresh(doc)
+            from app.services.doc_index import DocIndex
+
+            try:
+                DocIndex.invalidate(kb.id)
+            except Exception as e:  # pragma: no cover - cache best-effort
+                logger.warning("DocIndex.invalidate failed: {}", e)
         return doc
 
     async def delete_kb(self, kb: KnowledgeBase) -> None:
@@ -336,6 +445,12 @@ class IngestService:
         await self.session.delete(kb)
         await self.session.commit()
         BM25Store._cache.pop(kb.id, None)
+        from app.services.doc_index import DocIndex
+
+        try:
+            DocIndex.invalidate(kb.id)
+        except Exception as e:  # pragma: no cover - cache best-effort
+            logger.warning("DocIndex.invalidate failed: {}", e)
 
     @staticmethod
     def move_upload_to_kb_dir(

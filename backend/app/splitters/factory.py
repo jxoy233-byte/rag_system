@@ -1,4 +1,4 @@
-"""切片器工厂：基于 langchain-text-splitters 构建。"""
+"""切片器工厂。"""
 
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ class TextSplitter(Protocol):
 
 
 class RecursiveSplitter:
-     """按段落优先 + 字符回退的通用切片。"""
+     """按段落优先 + 字符回退的通用切片（单层，旧实现，保留作 fallback）。"""
 
      def __init__(self, chunk_size: int | None = None, chunk_overlap: int | None = None) -> None:
          s = get_settings()
@@ -68,4 +68,14 @@ class RecursiveSplitter:
 def build_splitter(
      chunk_size: int | None = None, chunk_overlap: int | None = None
 ) -> TextSplitter:
-     return RecursiveSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+     """默认走 ParentChildSplitter（父子两段切片），更利于召回 + 上下文完整。
+
+     旧的 RecursiveSplitter 保留为 fallback（用 splitter="recursive" 显式选）。
+     """
+     from app.splitters.parent_child import ParentChildSplitter
+
+     if chunk_size is not None and chunk_size > 0:
+         # 调用方显式给了 chunk_size，按 legacy 行为走 single-level
+         # （主要是兼容旧测试 build_splitter(chunk_size=200).split(...) 的形态）
+         return RecursiveSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap or 0)
+     return ParentChildSplitter()

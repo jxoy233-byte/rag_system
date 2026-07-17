@@ -50,8 +50,9 @@ class _MockLLM:
 class LLMFactory:
     """统一 LLM 接入（ChatOpenAI + mock）。"""
 
-    # 模型实例缓存：按 (model, temperature, base_url, api_key) 缓存，避免每次调用都重建。
-    # LangChain ChatOpenAI 自身不维护连接池，每次新建成本不高但有 race 风险，这里串行访问。
+    # 模型实例缓存：按 (model, temperature, base_url, api_key) 缓存，
+    # 避免每次调用都重建。LangChain ChatOpenAI 自身不维护连接池，
+    # 每次新建成本不高但有 race 风险，这里串行访问。
     _instances: dict[str, ChatOpenAI] = {}
 
     @classmethod

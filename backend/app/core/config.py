@@ -50,9 +50,9 @@ class Settings(BaseSettings):
     openai_embedding_api_key: str = ""
     openai_embedding_base_url: str = ""
     openai_embedding_model: str = "text-embedding-3-small"
-    local_embedding_model: str = "BAAI/bge-m3"
+    local_embedding_model: str = "BAAI/bge-base-zh-v1.5"
     local_embedding_device: str = "cpu"
-    local_embedding_dim: int = 1024
+    local_embedding_dim: int = 768
 
     # ===== Reranker =====
     rerank_provider: Literal["local", "none"] = "local"
@@ -116,7 +116,10 @@ class Settings(BaseSettings):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def allowed_extensions(self) -> set[str]:
-        return {".pdf", ".docx", ".pptx", ".md", ".txt", ".html", ".htm", ".csv", ".xlsx"}
+        return {
+            ".pdf", ".docx", ".doc", ".pptx", ".ppt", ".xlsx", ".xls",
+            ".md", ".txt", ".html", ".htm", ".csv",
+        }
 
     def ensure_dirs(self) -> None:
         for d in (self.data_dir, self.upload_dir, self.chroma_persist_dir, self.bm25_index_dir):

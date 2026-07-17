@@ -63,17 +63,10 @@ async def create_knowledge_base(payload: KnowledgeBaseCreate, session: DbSession
         description=payload.description,
         collection_name=_new_collection_name(_slugify(payload.name)),
         embedding_model=(
-            payload.embedding_model
-            or (
-                settings.local_embedding_model
-                if settings.embedding_provider in {"local", "mock"}
-                else settings.openai_embedding_model
-            )
+            payload.embedding_model if payload.embedding_model else None
         ),
         embedding_dim=(
-            payload.embedding_dim
-            if payload.embedding_dim is not None
-            else settings.local_embedding_dim
+            payload.embedding_dim if payload.embedding_dim is not None else None
         ),
         chunk_size=(
             payload.chunk_size if payload.chunk_size is not None else settings.chunk_size

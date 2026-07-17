@@ -85,3 +85,6 @@ class MessageRead(BaseModel):
      intent: str | None
      latency_ms: int
      created_at: datetime
+     # 助手消息的引用来源；从 Message.sources_json 解析回填（端点里手动填），
+     # 用户消息为空列表。前端据此渲染可点击引用 chip。
+     sources: list[SourceItem] = Field(default_factory=list)

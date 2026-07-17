@@ -73,7 +73,7 @@ class EmbeddingFactory:
 class _BGEEmbeddings:
     """通过 FlagEmbedding 调用 BGE-M3，懒加载避免启动慢。"""
 
-    def __init__(self, model_name: str, device: str = "cpu", dim: int = 1024) -> None:
+    def __init__(self, model_name: str, device: str = "cpu", dim: int = 768) -> None:
         self.model_name = model_name
         self.device = device
         self.dim = dim
@@ -100,7 +100,11 @@ class _BGEEmbeddings:
             # 然后再交给 FlagEmbedding / sentence_transformers；后续库内部
             # 即便再走 HF 路径，也会因为本地有 config.json 而不再重复下载。
             model_path = self._resolve_path()
-            try:
+            # BGEM3FlagModel 是 bge-m3 专用架构 loader；其他 BGE 系列（base-zh、
+            # large-zh、small-zh 等 BertModel 架构）走 sentence-transformers。
+            # 用模型名判定而不是 try/except：try 路径在 encode 阶段才报错，错误信息
+            # 难懂且会污染日志。
+            if "bge-m3" in self.model_name.lower():
                 from FlagEmbedding import BGEM3FlagModel
 
                 self._model = BGEM3FlagModel(
@@ -108,7 +112,7 @@ class _BGEEmbeddings:
                     use_fp16=False,
                     devices=self.device if self.device != "auto" else None,
                 )
-            except Exception:
+            else:
                 from sentence_transformers import SentenceTransformer
 
                 self._model = SentenceTransformer(model_path, device=self.device)
@@ -168,12 +172,11 @@ class _OpenAIEmbeddings:
 
 
 class _MockEmbeddings:
-    """稳定的、可重现的 mock embedding，用于离线/沙箱环境。
-
-    用文本 hash + 维度归一化生成向量；与 BGE-M3 同维度（1024），不调用任何外部 API。
+    """Mock Embedding：用于测试/沙箱环境。
+    用文本 hash + 维度归一化生成向量；与 bge-base-zh-v1.5 同维度（768），不调用任何外部 API。
     """
 
-    def __init__(self, dim: int = 1024) -> None:
+    def __init__(self, dim: int = 768) -> None:
         self.dim = dim
 
     @staticmethod

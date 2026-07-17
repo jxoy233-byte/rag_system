@@ -13,6 +13,7 @@ from app.models import KnowledgeBase
 from app.schemas.chat import SourceItem
 from app.schemas.search import SearchRequest, SearchResponse
 from app.services.retriever import HybridRetriever
+from app.services.embedding_resolver import resolve_embedding
 
 router = APIRouter(prefix="/search", tags=["search"])
 
@@ -29,12 +30,13 @@ async def search(
         raise HTTPException(status_code=404, detail="knowledge_base not found")
 
     t0 = time.time()
+    embedding_model, embedding_dim = resolve_embedding(kb)
     retriever = HybridRetriever(
         knowledge_base_id=kb.id,
         collection_name=kb.collection_name,
         rerank=payload.use_rerank,
-        embedding_model=kb.embedding_model,
-        embedding_dim=kb.embedding_dim,
+        embedding_model=embedding_model,
+        embedding_dim=embedding_dim,
     )
     chunks = await retriever.retrieve(payload.query, top_k=payload.top_k)
     sources: list[SourceItem] = []

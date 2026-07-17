@@ -20,6 +20,7 @@ from app.loaders.base import ImageInfo, LoadedDocument
 from app.models import Document, KnowledgeBase
 from app.models.document import DocumentStatus
 from app.services.bm25_store import BM25Doc, BM25Store
+from app.services.embedding_resolver import resolve_embedding
 from app.services.image_describer import create_image_describer
 from app.splitters import build_splitter
 from app.vectorstore import ChromaStore
@@ -186,9 +187,10 @@ class IngestService:
                 md.update({k: v for k, v in c.metadata.items() if v is not None})
             metadatas.append(md)
 
+        model_name, dim = resolve_embedding(kb)
         embedding = EmbeddingFactory.get(
-            model_name=kb.embedding_model,
-            dim=kb.embedding_dim,
+            model_name=model_name,
+            dim=dim,
         )
         store = ChromaStore(
             collection_name=kb.collection_name,

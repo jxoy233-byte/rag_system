@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import tempfile
 from pathlib import Path as FsPath
 from typing import Annotated
@@ -25,6 +26,7 @@ from sqlalchemy.orm import selectinload
 from app.core.config import get_settings
 from app.core.deps import get_db
 from app.models import Document, KnowledgeBase
+from app.schemas.chunk import ChunkDetail, ChunkListItem, ContentSegment, DocumentContent
 from app.schemas.document import (
     BatchUploadResponse,
     DocumentListResponse,
@@ -32,6 +34,7 @@ from app.schemas.document import (
     UploadResponse,
 )
 from app.services.ingest import IngestService
+from app.vectorstore import ChromaStore
 
 router = APIRouter(prefix="/knowledge-bases/{kb_id}/documents", tags=["documents"])
 
@@ -309,3 +312,201 @@ async def retry_document(
 
     updated = await IngestService(session).retry_document(doc)
     return DocumentRead.model_validate(updated)
+
+
+# ---------- chunks (按文档列切片 / 按 chunk_id 查详情) ----------
+
+
+@router.get("/{doc_id}/chunks", response_model=list[ChunkListItem])
+async def list_document_chunks(
+    kb_id: KbId,
+    doc_id: Annotated[int, Path(ge=1)],
+    session: DbSession,
+) -> list[ChunkListItem]:
+    """返回该文档在 Chroma 中的全部切片概要，按 chunk_index 升序。"""
+    await _get_kb_or_404(session, kb_id)
+    doc = await session.get(Document, doc_id)
+    if not doc or doc.knowledge_base_id != kb_id:
+        raise HTTPException(status_code=404, detail="document not found")
+
+    kb = await session.get(KnowledgeBase, kb_id)
+    rows = ChromaStore(collection_name=kb.collection_name).get(where={"doc_id": doc_id})
+    # 入库时若存了 metadata.chunk_index 则按它排序；缺则保持 Chroma 返回顺序
+    rows.sort(
+        key=lambda r: (
+            int(r["metadata"].get("chunk_index", 0))
+            if str(r["metadata"].get("chunk_index", "")).isdigit()
+            else 0
+        )
+    )
+    return [
+        ChunkListItem(
+            chunk_id=r["id"],
+            doc_id=doc_id,
+            kb_id=kb_id,
+            length=len(r["text"] or ""),
+            preview=(r["text"] or "")[:200],
+            page=r["metadata"].get("page"),
+            section=r["metadata"].get("section"),
+            document=doc.title,
+            chunk_index=(
+                int(r["metadata"]["chunk_index"])
+                if str(r["metadata"].get("chunk_index", "")).isdigit()
+                else None
+            ),
+        )
+        for r in rows
+    ]
+
+
+@router.get("/{doc_id}/chunks/{chunk_id}", response_model=ChunkDetail)
+async def get_document_chunk(
+    kb_id: KbId,
+    doc_id: Annotated[int, Path(ge=1)],
+    chunk_id: str,
+    session: DbSession,
+) -> ChunkDetail:
+    """按 chunk_id 查详情（完整 text + 元数据），用于引用 chip 抽屉。"""
+    await _get_kb_or_404(session, kb_id)
+    doc = await session.get(Document, doc_id)
+    if not doc or doc.knowledge_base_id != kb_id:
+        raise HTTPException(status_code=404, detail="document not found")
+
+    kb = await session.get(KnowledgeBase, kb_id)
+    rows = ChromaStore(collection_name=kb.collection_name).get(ids=[chunk_id])
+    if not rows:
+        raise HTTPException(status_code=404, detail="chunk not found")
+    r = rows[0]
+    return ChunkDetail(
+        chunk_id=r["id"],
+        doc_id=doc_id,
+        kb_id=kb_id,
+        text=r["text"] or "",
+        page=r["metadata"].get("page"),
+        section=r["metadata"].get("section"),
+        document=doc.title,
+    )
+
+
+def _chunk_index_key(row: dict) -> int:
+    """从 metadata 取 chunk_index 作排序键；缺失/非数字则视为 0。"""
+    raw = row["metadata"].get("chunk_index", "")
+    return int(raw) if str(raw).isdigit() else 0
+
+
+@router.get("/{doc_id}/images-debug")
+async def debug_document_images(
+    kb_id: KbId,
+    doc_id: Annotated[int, Path(ge=1)],
+    session: DbSession,
+) -> dict:
+    """调试：对原始文件重新跑一遍解析（不写库），列出每张图的描述长度/前 80 字。
+
+    用于排查「[图片:N] 替换进去的到底是什么」—— 答案对答 RAG、UI 提示词是否生效很关键。
+    重 loader 调用本地 CLI / Python 库，单 PDF 通常 1-5 秒；不修改数据库。
+    """
+    await _get_kb_or_404(session, kb_id)
+    doc = await session.get(Document, doc_id)
+    if not doc or doc.knowledge_base_id != kb_id:
+        raise HTTPException(status_code=404, detail="document not found")
+
+    path = FsPath(doc.file_path)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail=f"original file not found: {path}")
+
+    from app.loaders import DocumentLoaderFactory
+
+    settings = get_settings()
+    if path.suffix.lower() not in settings.allowed_extensions:
+        raise HTTPException(
+            status_code=415,
+            detail=f"file type {path.suffix} not supported by current loaders",
+        )
+
+    try:
+        loaded = await asyncio.to_thread(DocumentLoaderFactory.load, path)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"loader failed: {e}") from e
+
+    images_meta: list[dict] = []
+    for idx, img in enumerate(loaded.all_images(), 1):
+        # 1-based 占位符序号，与 ingest 替换时一致
+        placeholder = f"[图片:{idx}]"
+        images_meta.append(
+            {
+                "index": idx,
+                "placeholder": placeholder,
+                "mime_type": img.mime_type,
+                "size_bytes": len(img.image_bytes),
+                "alt_text": img.alt_text,
+                "description": img.description or "",
+                "description_chars": len(img.description or ""),
+                "description_failed": (img.description or "")
+                in ("", "[图片]", "[图片描述生成失败]"),
+            }
+        )
+
+    # 占位符出现次数（与 loader 抽取的图数对比 → 多/缺 都可能）
+    placeholder_counts: dict[str, int] = {}
+    for p in loaded.to_pages():
+        for line in p.text.splitlines():
+            if "[图片:" in line:
+                # 简化：每次出现都记一次；具体编号在 images_meta 中查
+                placeholder_counts[line.strip()] = (
+                    placeholder_counts.get(line.strip(), 0) + 1
+                )
+
+    return {
+        "doc_id": doc.id,
+        "filename": doc.filename,
+        "ext": doc.file_ext,
+        "loader": type(loaded).__name__ if False else type(loaded).__class__.__name__,
+        "has_images": loaded.has_images(),
+        "image_count": len(images_meta),
+        "settings_image_cap": settings.max_images_per_doc,
+        "images": images_meta,
+        "page_count": len(loaded.pages),
+        "placeholder_lines_in_text": placeholder_counts,
+    }
+
+
+@router.get("/{doc_id}/content", response_model=DocumentContent)
+async def get_document_content(
+    kb_id: KbId,
+    doc_id: Annotated[int, Path(ge=1)],
+    session: DbSession,
+) -> DocumentContent:
+    """「原文」视图：把该文档全部切片按 chunk_index 升序拼成连续全文。
+
+    与 /chunks（切分视图）同源（都读 Chroma），便于前端对照「解析全文 vs 切分边界」。
+    """
+    await _get_kb_or_404(session, kb_id)
+    doc = await session.get(Document, doc_id)
+    if not doc or doc.knowledge_base_id != kb_id:
+        raise HTTPException(status_code=404, detail="document not found")
+
+    kb = await session.get(KnowledgeBase, kb_id)
+    rows = ChromaStore(collection_name=kb.collection_name).get(where={"doc_id": doc_id})
+    rows.sort(key=_chunk_index_key)
+
+    segments = [
+        ContentSegment(
+            chunk_index=(
+                int(r["metadata"]["chunk_index"])
+                if str(r["metadata"].get("chunk_index", "")).isdigit()
+                else None
+            ),
+            page=r["metadata"].get("page"),
+            section=r["metadata"].get("section"),
+            text=r["text"] or "",
+        )
+        for r in rows
+    ]
+    full_text = "\n\n".join(s.text for s in segments if s.text)
+    return DocumentContent(
+        doc_id=doc_id,
+        kb_id=kb_id,
+        title=doc.title,
+        segments=segments,
+        full_text=full_text,
+    )

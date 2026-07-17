@@ -20,9 +20,17 @@ from typing import TYPE_CHECKING, Optional
 from loguru import logger
 
 from app.loaders.base import ImageInfo
+from PIL import Image as PILImage  # 模块级 import：_compress_image 等子函数也能用
 
-if TYPE_CHECKING:
-    from PIL import Image
+
+# 图片描述统一提示词：宽松版。
+# 用户希望多说点但有上限，配合 max_new_tokens=600，模型自然停在 1-3 句。
+# 否定指引只挡最耗时的「无意义展开」式啰嗦，不限制真正的内容。
+IMAGE_DESCRIBE_PROMPT = (
+    "用 1-3 句中文客观描述这张图片：图类型（图/表/示意/截图/公式等）、"
+    "图里可见的关键文字或数据、图要表达的核心观点。"
+    "信息密度高一点但不要重复、不要客套、不要「这张图显示了」开头。"
+)
 
 
 # ===== 描述器抽象 =====
@@ -53,7 +61,7 @@ class OpenAIImageDescriber(ImageDescriber):
         api_key: str,
         base_url: str = "https://api.openai.com/v1",
         model: str = "gpt-4o-mini",
-        max_tokens: int = 512,
+        max_tokens: int = 600,
     ) -> None:
         self.api_key = api_key
         self.base_url = base_url.rstrip("/")
@@ -85,7 +93,7 @@ class OpenAIImageDescriber(ImageDescriber):
                                     "content": [
                                         {
                                             "type": "text",
-                                            "text": "请简要描述这张图片的内容，用于文档检索。控制在100字以内，重点描述图片中的关键信息、数据、图表类型等。",
+                                            "text": IMAGE_DESCRIBE_PROMPT,
                                         },
                                         {
                                             "type": "image_url",
@@ -133,7 +141,7 @@ class LocalVLMDescriber(ImageDescriber):
         model_id: str = "Qwen/Qwen3-VL-2B-Instruct",
         local_dir: Optional[str] = None,
         device: str = "auto",
-        max_pixels: int = 256 * 28 * 28,  # 约 512x512
+        max_pixels: int = 256 * 28 * 28,  # ≈ 256x256 — 再低会让图表里的字看不清；再高会拖慢入库 2-3 倍
     ) -> None:
         self.model_id = model_id
         self.local_dir = local_dir or str(Path.cwd() / ".model" / model_id.replace("/", "--"))
@@ -207,12 +215,10 @@ class LocalVLMDescriber(ImageDescriber):
         # 延迟加载模型
         self._load_model()
 
-        from PIL import Image
-
         for img in images:
             try:
                 # 转为 PIL Image
-                pil_img = Image.open(io.BytesIO(img.image_bytes)).convert("RGB")
+                pil_img = PILImage.open(io.BytesIO(img.image_bytes)).convert("RGB")
 
                 # 压缩大图
                 pil_img = self._compress_image(pil_img)
@@ -222,7 +228,7 @@ class LocalVLMDescriber(ImageDescriber):
                     {
                         "role": "user",
                         "content": [
-                            {"type": "text", "text": "请简要描述这张图片的内容，用于文档检索。控制在100字以内，重点描述图片中的关键信息、数据、图表类型等。"},
+                            {"type": "text", "text": IMAGE_DESCRIBE_PROMPT},
                             {"type": "image"},
                         ],
                     }
@@ -242,7 +248,7 @@ class LocalVLMDescriber(ImageDescriber):
                 # 生成
                 output_ids = self._model.generate(
                     **inputs,
-                    max_new_tokens=256,
+                    max_new_tokens=600,
                 )
                 result = self._processor.batch_decode(output_ids, skip_special_tokens=True)[0]
 
@@ -263,12 +269,12 @@ class LocalVLMDescriber(ImageDescriber):
 
         return images
 
-    def _compress_image(self, image: "Image.Image", max_size: int = 512) -> "Image.Image":
-        """压缩图片到指定最大尺寸。"""
+    def _compress_image(self, image: "PILImage.Image", max_size: int = 384) -> "PILImage.Image":
+        """压缩图片到最大 384px（再高会让 VLM 解析明显变慢，再低看不清图表里的小字）。"""
         if max(image.size) > max_size:
             ratio = max_size / max(image.size)
             new_size = (int(image.size[0] * ratio), int(image.size[1] * ratio))
-            return image.resize(new_size, Image.LANCZOS)
+            return image.resize(new_size, PILImage.LANCZOS)
         return image
 
     def close(self) -> None:

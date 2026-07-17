@@ -41,11 +41,44 @@ def _apply_hf_endpoint(endpoint: str | None) -> None:
     logger.info("[local-model] HF_ENDPOINT applied: {}", endpoint)
 
 
+# 用于「包含真正权重文件」的判定。除了主权重，还覆盖多 shard 命名（HF 常见
+# `pytorch_model-00001-of-00006.bin`）。符号链接、ONNX、Triton、TensorRT 等格式
+# 不能直接被 sentence-transformers / transformers 加载，跳过。
+_WEIGHT_NAMES = (
+    "model.safetensors",
+    "model.safetensors.index.json",
+    "pytorch_model.bin",
+    "model.bin",
+)
+_EXCLUDED_FORMATS = ("onnx", "triton", "tensorrt")
+_WEIGHT_GLOBS = ("*.safetensors", "pytorch_model*.bin", "model*.bin")
+# 主权重通常 > 100MB（即便 7B 量化的也 > 1GB）。这个阈值挡住「只剩 config /
+# tokenizer / README」的半成品目录，那些会让 from_pretrained 启动时报权重缺失。
+_MIN_WEIGHT_BYTES = 50 * 1024 * 1024  # 50MB
+
+
 def _has_weights(path: Path) -> bool:
-    """检查目录是否含模型权重文件。仅 config.json 不算完整（BGE-M3 等经常
-    下载 config + tokenizer 成功但主权重失败/中断，留下半成品 cache）。"""
-    candidates = ("model.safetensors", "pytorch_model.bin", "model.bin")
-    return any((path / f).is_file() for f in candidates)
+    """判断目录里是否含 PyTorch / safetensors 主权重（足够大的那种）。
+
+    仅 config.json / tokenizer.json / sentencepiece 不算完整（BGE-M3 等经常出现
+    「下载到 tokenizer 就中断」半成品）。同时排除 ONNX / Triton / TensorRT 这些
+    与 sentence-transformers 加载路径不兼容的格式。
+    """
+    # 候选 1：固定名（最常见）
+    for name in _WEIGHT_NAMES:
+        f = path / name
+        if f.is_file() and f.stat().st_size >= _MIN_WEIGHT_BYTES:
+            return True
+
+    # 候选 2：glob（多 shard、量化变体）
+    for pattern in _WEIGHT_GLOBS:
+        for f in path.glob(pattern):
+            if any(part in _EXCLUDED_FORMATS for part in f.parts):
+                continue
+            if f.is_file() and f.stat().st_size >= _MIN_WEIGHT_BYTES:
+                return True
+
+    return False
 
 
 def _find_hf_cached_snapshot(model_id: str) -> Optional[str]:
@@ -108,7 +141,7 @@ def resolve_local_path(
     """把 model_id 解析成本地可用路径。
 
     Args:
-        model_id: HuggingFace 模型 id（如 ``BAAI/bge-m3``）。
+        model_id: HuggingFace 模型 id（如 ``BAAI/bge-base-zh-v1.5``）。
         root: 本地模型根目录；默认 ``cwd/.model``。
         override: 显式本地目录覆盖；非空时优先用该路径（不存在则下载到该路径）。
         hf_endpoint: HuggingFace 镜像 URL（如 https://hf-mirror.com）；留空走默认。

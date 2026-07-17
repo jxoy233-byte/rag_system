@@ -88,6 +88,30 @@ class ChromaStore:
          if ids:
              self.collection.delete(ids=ids)
 
+     def get(
+         self,
+         ids: list[str] | None = None,
+         where: dict | None = None,
+     ) -> list[dict]:
+         """按 id / where 拉取 chunk 完整文本与元数据（无 embedding 计算）。
+
+         返回 list[dict]，每项形如 {"id": str, "text": str, "metadata": dict}。
+         用于「按文档列出切片」与「按 chunk_id 查详情」两个端点。
+         """
+         res = self.collection.get(  # 走 @property 触发 lazy init
+             ids=ids,
+             where=where,
+             include=["documents", "metadatas"],
+         )
+         return [
+             {"id": cid, "text": txt, "metadata": (meta or {})}
+             for cid, txt, meta in zip(
+                 res.get("ids", []),
+                 res.get("documents", []),
+                 res.get("metadatas", []),
+             )
+         ]
+
      def reset(self) -> None:
          client = self._get_client()
          try:

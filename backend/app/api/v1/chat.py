@@ -29,6 +29,7 @@ from app.schemas.chat import (
     SourceItem,
 )
 from app.services.agent import AgentEvent, build_agent
+from app.services.embedding_resolver import resolve_embedding
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -97,12 +98,13 @@ async def chat(payload: ChatRequest, session: DbSession):
             raise HTTPException(status_code=404, detail="knowledge_base not found")
 
     async def event_iter():
+        embedding_model, embedding_dim = resolve_embedding(kb)
         agent = build_agent(
             kb_id=kb.id if kb else None,
             collection_name=kb.collection_name if kb else None,
             enable_web=payload.enable_web and settings.enable_web_search,
-            embedding_model=kb.embedding_model if kb else None,
-            embedding_dim=kb.embedding_dim if kb else None,
+            embedding_model=embedding_model,
+            embedding_dim=embedding_dim,
         )
         t0 = time.time()
         full_answer = ""
@@ -195,12 +197,13 @@ async def chat_sync(payload: ChatRequest, session: DbSession) -> dict:
         if not kb:
             raise HTTPException(status_code=404, detail="knowledge_base not found")
 
+    embedding_model, embedding_dim = resolve_embedding(kb)
     agent = build_agent(
         kb_id=kb.id if kb else None,
         collection_name=kb.collection_name if kb else None,
         enable_web=payload.enable_web and settings.enable_web_search,
-        embedding_model=kb.embedding_model if kb else None,
-        embedding_dim=kb.embedding_dim if kb else None,
+        embedding_model=embedding_model,
+        embedding_dim=embedding_dim,
     )
     intent: str | None = None
     sources_data: list[dict] = []
@@ -271,7 +274,19 @@ async def list_messages(
     res = await session.execute(
         select(Message).where(Message.conversation_id == conv_id).order_by(Message.id)
     )
-    return [MessageRead.model_validate(m) for m in res.scalars().all()]
+    out: list[MessageRead] = []
+    for m in res.scalars().all():
+        item = MessageRead.model_validate(m)
+        # sources_json 是持久化的 JSON 字符串（仅助手消息有）；解析回填给前端，
+        # 让历史会话重新打开后引用 chip 仍可点击。
+        if m.sources_json:
+            try:
+                raw = json.loads(m.sources_json)
+                item.sources = [SourceItem(**s) for s in raw]
+            except Exception as e:
+                logger.warning("parse sources_json failed for msg={}: {}", m.id, e)
+        out.append(item)
+    return out
 
 
 @router.delete(

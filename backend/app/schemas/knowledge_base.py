@@ -55,8 +55,8 @@ class KnowledgeBaseRead(BaseModel):
      slug: str
      description: str | None
      collection_name: str
-     embedding_model: str
-     embedding_dim: int
+     embedding_model: str | None = None
+     embedding_dim: int | None = None
      chunk_size: int
      chunk_overlap: int
      doc_count: int

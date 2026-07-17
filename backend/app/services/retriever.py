@@ -92,9 +92,11 @@ class HybridRetriever:
          if not fused:
              return []
 
-         if use_rerank and len(fused) > k:
+         if use_rerank and fused:
+             # 把全部融合候选都交给 reranker；最终取 top k。
+             # 之前传 s.rerank_top_k (=20) 在 fused>20 时会丢掉尾部候选的精排机会。
              texts = [c.text for c in fused]
-             ranked = await asyncio.to_thread(self.reranker.rerank, query, texts, s.rerank_top_k)
+             ranked = await asyncio.to_thread(self.reranker.rerank, query, texts, len(fused))
              for idx, score in ranked:
                  if 0 <= idx < len(fused):
                      fused[idx].rerank_score = float(score)
@@ -120,11 +122,12 @@ class HybridRetriever:
              )
              scores[item.id] = chunk
 
-         for rank, (bm_doc, score) in enumerate(bm25_items):
-             existing = scores.get(bm_doc.chunk_id)
-             if existing:
-                 existing.bm25_score = float(score)
-                 existing.source = "fused"
+         # BM25-only 兜底：纯 BM25 命中的 chunk（向量没召回）也要进 scores 字典，
+         # 否则后面按 cid 取 bm25_rank 时它的分数能算上但 chunk 文本/元数据丢了。
+         for bm_doc, score in bm25_items:
+             if bm_doc.chunk_id in scores:
+                 scores[bm_doc.chunk_id].bm25_score = float(score)
+                 scores[bm_doc.chunk_id].source = "fused"
              else:
                  scores[bm_doc.chunk_id] = RetrievedChunk(
                      id=bm_doc.chunk_id,
@@ -134,17 +137,16 @@ class HybridRetriever:
                      source="bm25",
                  )
 
-         for rank, chunk in enumerate(
-             sorted(
-                 scores.values(),
-                 key=lambda c: max(c.vector_score, c.bm25_score),
-                 reverse=True,
-             )
-):
+         # 用每个 source 自己的原始排名算 RRF，而不是融合后的排名 ——
+         # 否则等价于「出现一次 +1 / 出现两次 +2」，丢失了 BM25/向量各自的排序信号。
+         vec_rank = {item.id: r for r, item in enumerate(vec_items)}
+         bm25_rank = {bm_doc.chunk_id: r for r, (bm_doc, _) in enumerate(bm25_items)}
+
+         for cid, chunk in scores.items():
              rrf = 0.0
-             if chunk.vector_score > 0:
-                 rrf += 1.0 / (k_const + rank + 1)
-             if chunk.bm25_score > 0:
-                 rrf += 1.0 / (k_const + rank + 1)
+             if cid in vec_rank:
+                 rrf += 1.0 / (k_const + vec_rank[cid] + 1)
+             if cid in bm25_rank:
+                 rrf += 1.0 / (k_const + bm25_rank[cid] + 1)
              chunk.score = rrf
          return sorted(scores.values(), key=lambda c: c.score, reverse=True)

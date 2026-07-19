@@ -1,69 +1,64 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1640 1340" font-family="Noto Sans SC">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1700 1460" font-family="Noto Sans SC">
   <defs>
     <marker id="arrow" markerWidth="12" markerHeight="12" refX="9" refY="4"
             orient="auto" markerUnits="strokeWidth"><path d="M0 0 L10 4 L0 8 z"/></marker>
+    <marker id="arrowW" markerWidth="12" markerHeight="12" refX="9" refY="4"
+            orient="auto" markerUnits="strokeWidth"><path d="M0 0 L10 4 L0 8 z" fill="#F61B27"/></marker>
   </defs>
 
-  <rect width="1640" height="1340" fill="#E4D2C4"/>
+  <rect width="1700" height="1460" fill="#E4D2C4"/>
 
   <text x="80" y="92" font-size="44" font-weight="700" fill="#1F1A14" letter-spacing="2">核心逻辑 · 端到端数据流</text>
-  <text x="80" y="128" font-size="18" font-weight="400" fill="#1F1A14">入库写入 → 双索引存储 → 混合检索（向量+BM25+RRF+Rerank） → 生成 → SSE 流式输出</text>
-  <line x1="80" y1="150" x2="1560" y2="150" stroke="#1F1A14" stroke-width="2"/>
+  <text x="80" y="128" font-size="18" font-weight="400" fill="#1F1A14">入库写入 → 双索引存储 → 混合检索（向量+BM25+RRF+Rerank）→ Self-RAG relevance → 生成（含 confidence gate）→ SSE 流式</text>
+  <line x1="80" y1="150" x2="1620" y2="150" stroke="#1F1A14" stroke-width="2"/>
 
   <!-- ============== TOP RAIL: INGEST ============== -->
   <text x="80" y="195" font-size="20" font-weight="700" fill="#1F1A14" letter-spacing="3">写入轨 · IngestService（asyncio.to_thread）</text>
 
-  <!-- file source -->
   <rect x="80" y="215" width="160" height="110" fill="#FFFFFF" stroke="#1F1A14" stroke-width="2" rx="4"/>
   <text x="160" y="248" font-size="18" font-weight="700" fill="#1F1A14" text-anchor="middle">上传文件</text>
   <text x="160" y="276" font-size="13" fill="#1F1A14" text-anchor="middle">PDF · DOCX</text>
   <text x="160" y="298" font-size="13" fill="#1F1A14" text-anchor="middle">MD · TXT · CSV</text>
   <text x="160" y="318" font-size="12" fill="#1F1A14" text-anchor="middle" font-style="italic">data/uploads/{slug}/</text>
 
-  <!-- loader -->
   <rect x="280" y="215" width="180" height="110" fill="#04B24F" rx="4"/>
   <text x="370" y="248" font-size="18" font-weight="700" fill="#FFFFFF" text-anchor="middle">DocumentLoader</text>
   <text x="370" y="276" font-size="13" fill="#FFFFFF" text-anchor="middle">按后缀选 loader</text>
   <text x="370" y="298" font-size="13" fill="#FFFFFF" text-anchor="middle">提取段落 / 页码 / 表格</text>
-  <text x="370" y="318" font-size="12" fill="#FFFFFF" text-anchor="middle" font-style="italic">LoaderFactory</text>
+  <text x="370" y="318" font-size="12" fill="#FFFFFF" text-anchor="middle" font-style="italic">LoaderFactory · VLM 占位</text>
 
-  <!-- splitter -->
   <rect x="500" y="215" width="180" height="110" fill="#04B24F" rx="4"/>
   <text x="590" y="248" font-size="18" font-weight="700" fill="#FFFFFF" text-anchor="middle">Recursive</text>
-  <text x="590" y="272" font-size="16" fill="#FFFFFF" text-anchor="middle">Splitter</text>
+  <text x="590" y="272" font-size="16" font-weight="700" fill="#FFFFFF" text-anchor="middle">Splitter</text>
   <text x="590" y="298" font-size="13" fill="#FFFFFF" text-anchor="middle">chunk 600 / 120</text>
   <text x="590" y="318" font-size="12" fill="#FFFFFF" text-anchor="middle" font-style="italic">保留 section / page</text>
 
-  <!-- embed -->
   <rect x="720" y="215" width="200" height="110" fill="#04B24F" rx="4"/>
   <text x="820" y="248" font-size="18" font-weight="700" fill="#FFFFFF" text-anchor="middle">Embedding</text>
   <text x="820" y="276" font-size="13" fill="#FFFFFF" text-anchor="middle">BGE-M3 (local)</text>
   <text x="820" y="298" font-size="13" fill="#FFFFFF" text-anchor="middle">向量化所有 chunks</text>
   <text x="820" y="318" font-size="12" fill="#FFFFFF" text-anchor="middle" font-style="italic">EmbeddingFactory</text>
 
-  <!-- dual write -->
   <rect x="960" y="215" width="220" height="110" fill="#044D99" rx="4"/>
   <text x="1070" y="248" font-size="18" font-weight="700" fill="#FFFFFF" text-anchor="middle">双写</text>
   <text x="1070" y="276" font-size="13" fill="#FFFFFF" text-anchor="middle">ChromaStore.add()</text>
   <text x="1070" y="298" font-size="13" fill="#FFFFFF" text-anchor="middle">BM25Store.add()</text>
   <text x="1070" y="318" font-size="12" fill="#FFFFFF" text-anchor="middle" font-style="italic">同 chunk_id 对齐</text>
 
-  <!-- metadata -->
-  <rect x="1220" y="215" width="180" height="110" fill="#044D99" rx="4"/>
-  <text x="1310" y="248" font-size="18" font-weight="700" fill="#FFFFFF" text-anchor="middle">元数据</text>
-  <text x="1310" y="276" font-size="13" fill="#FFFFFF" text-anchor="middle">SQLite</text>
-  <text x="1310" y="298" font-size="13" fill="#FFFFFF" text-anchor="middle">KB · Document · status</text>
-  <text x="1310" y="318" font-size="12" fill="#FFFFFF" text-anchor="middle" font-style="italic">chunk_count / doc_count</text>
+  <rect x="1220" y="215" width="180" height="110" fill="#F2A03B" rx="4"/>
+  <text x="1310" y="248" font-size="18" font-weight="700" fill="#FFFFFF" text-anchor="middle">DOC SUMMARY</text>
+  <text x="1310" y="276" font-size="13" fill="#FFFFFF" text-anchor="middle">LLM 写 150-300 字摘要</text>
+  <text x="1310" y="298" font-size="13" fill="#FFFFFF" text-anchor="middle">写 DocIndex</text>
+  <text x="1310" y="318" font-size="12" fill="#FFFFFF" text-anchor="middle" font-style="italic">title+filename+summary</text>
 
-  <!-- status block -->
-  <rect x="1440" y="215" width="160" height="110" fill="#F61B27" rx="4"/>
-  <text x="1520" y="248" font-size="18" font-weight="700" fill="#FFFFFF" text-anchor="middle">status</text>
-  <text x="1520" y="276" font-size="13" fill="#FFFFFF" text-anchor="middle">processing</text>
-  <text x="1520" y="298" font-size="13" fill="#FFFFFF" text-anchor="middle">ready / failed</text>
-  <text x="1520" y="318" font-size="12" fill="#FFFFFF" text-anchor="middle" font-style="italic">后台 BackgroundTasks</text>
+  <rect x="1440" y="215" width="180" height="110" fill="#044D99" rx="4"/>
+  <text x="1530" y="248" font-size="18" font-weight="700" fill="#FFFFFF" text-anchor="middle">元数据</text>
+  <text x="1530" y="276" font-size="13" fill="#FFFFFF" text-anchor="middle">SQLite</text>
+  <text x="1530" y="298" font-size="13" fill="#FFFFFF" text-anchor="middle">KB · Document · status</text>
+  <text x="1530" y="318" font-size="12" fill="#FFFFFF" text-anchor="middle" font-style="italic">chunk_count / doc_count</text>
 
-  <!-- arrows: file → loader → splitter → embed → dual → meta → status -->
+  <!-- arrows: file → loader → splitter → embed → dual → summary → meta -->
   <line x1="240" y1="270" x2="278" y2="270" stroke="#1F1A14" stroke-width="3" marker-end="url(#arrow)"/>
   <line x1="460" y1="270" x2="498" y2="270" stroke="#1F1A14" stroke-width="3" marker-end="url(#arrow)"/>
   <line x1="680" y1="270" x2="718" y2="270" stroke="#1F1A14" stroke-width="3" marker-end="url(#arrow)"/>
@@ -71,59 +66,63 @@
   <line x1="1180" y1="270" x2="1218" y2="270" stroke="#1F1A14" stroke-width="3" marker-end="url(#arrow)"/>
   <line x1="1400" y1="270" x2="1438" y2="270" stroke="#1F1A14" stroke-width="3" marker-end="url(#arrow)"/>
 
-  <!-- ============== STORAGE LAYER (CENTER) ============== -->
+  <!-- ============== STORAGE LAYER ============== -->
   <text x="80" y="380" font-size="20" font-weight="700" fill="#1F1A14" letter-spacing="3">存储层 · data/</text>
 
-  <!-- filesystem -->
-  <rect x="80" y="400" width="380" height="160" fill="#FFFFFF" stroke="#1F1A14" stroke-width="2" rx="4"/>
-  <text x="270" y="430" font-size="18" font-weight="700" fill="#1F1A14" text-anchor="middle">本地文件系统</text>
-  <text x="270" y="458" font-size="13" fill="#1F1A14" text-anchor="middle">data/uploads/{kb_slug}/</text>
-  <text x="270" y="482" font-size="13" fill="#1F1A14" text-anchor="middle">原始文件 · move_upload_to_kb_dir</text>
-  <text x="270" y="506" font-size="13" fill="#1F1A14" text-anchor="middle">delete_kb → 清理孤儿文件</text>
-  <text x="270" y="548" font-size="12" fill="#1F1A14" text-anchor="middle" font-style="italic">retry_document 重新 move</text>
+  <rect x="80" y="400" width="320" height="160" fill="#FFFFFF" stroke="#1F1A14" stroke-width="2" rx="4"/>
+  <text x="240" y="430" font-size="18" font-weight="700" fill="#1F1A14" text-anchor="middle">本地文件系统</text>
+  <text x="240" y="458" font-size="13" fill="#1F1A14" text-anchor="middle">data/uploads/{kb_slug}/</text>
+  <text x="240" y="482" font-size="13" fill="#1F1A14" text-anchor="middle">原始文件 · move_upload</text>
+  <text x="240" y="506" font-size="13" fill="#1F1A14" text-anchor="middle">delete_kb → 清理孤儿</text>
+  <text x="240" y="548" font-size="12" fill="#1F1A14" text-anchor="middle" font-style="italic">retry_document 重新 move</text>
 
-  <!-- chroma -->
-  <rect x="500" y="400" width="380" height="160" fill="#044D99" rx="6"/>
-  <text x="690" y="430" font-size="18" font-weight="700" fill="#FFFFFF" text-anchor="middle">ChromaDB 向量库</text>
-  <text x="690" y="458" font-size="13" fill="#FFFFFF" text-anchor="middle">持久化目录 · collection 按 KB 隔离</text>
-  <text x="690" y="482" font-size="13" fill="#FFFFFF" text-anchor="middle">data/chroma/</text>
-  <text x="690" y="506" font-size="13" fill="#FFFFFF" text-anchor="middle">query / add / delete_by_doc_id / reset</text>
-  <text x="690" y="548" font-size="12" fill="#FFFFFF" text-anchor="middle" font-style="italic">embedding 维度 = kb.embedding_dim</text>
+  <rect x="440" y="400" width="320" height="160" fill="#044D99" rx="6"/>
+  <text x="600" y="430" font-size="18" font-weight="700" fill="#FFFFFF" text-anchor="middle">ChromaDB 向量库</text>
+  <text x="600" y="458" font-size="13" fill="#FFFFFF" text-anchor="middle">持久化目录 · collection 按 KB 隔离</text>
+  <text x="600" y="482" font-size="13" fill="#FFFFFF" text-anchor="middle">data/chroma/</text>
+  <text x="600" y="506" font-size="13" fill="#FFFFFF" text-anchor="middle">query / add / delete_by_doc_id</text>
+  <text x="600" y="548" font-size="12" fill="#FFFFFF" text-anchor="middle" font-style="italic">embedding 维度 = kb.embedding_dim</text>
 
-  <!-- bm25 -->
-  <rect x="920" y="400" width="380" height="160" fill="#04B24F" rx="6"/>
-  <text x="1110" y="430" font-size="18" font-weight="700" fill="#FFFFFF" text-anchor="middle">BM25 索引（Pickle）</text>
-  <text x="1110" y="458" font-size="13" fill="#FFFFFF" text-anchor="middle">data/bm25/{kb_id}.pkl</text>
-  <text x="1110" y="482" font-size="13" fill="#FFFFFF" text-anchor="middle">中文：rank_bm25 + jieba 分词</text>
-  <text x="1110" y="506" font-size="13" fill="#FFFFFF" text-anchor="middle">BM25Store.for_kb(kb_id) 单例缓存</text>
-  <text x="1110" y="548" font-size="12" fill="#FFFFFF" text-anchor="middle" font-style="italic">delete_kb → reset + 清缓存</text>
+  <rect x="800" y="400" width="320" height="160" fill="#04B24F" rx="6"/>
+  <text x="960" y="430" font-size="18" font-weight="700" fill="#FFFFFF" text-anchor="middle">BM25 索引（Pickle）</text>
+  <text x="960" y="458" font-size="13" fill="#FFFFFF" text-anchor="middle">data/bm25/{kb_id}.pkl</text>
+  <text x="960" y="482" font-size="13" fill="#FFFFFF" text-anchor="middle">中文：rank_bm25 + jieba 分词</text>
+  <text x="960" y="506" font-size="13" fill="#FFFFFF" text-anchor="middle">BM25Store.for_kb(kb_id) 单例缓存</text>
+  <text x="960" y="548" font-size="12" fill="#FFFFFF" text-anchor="middle" font-style="italic">delete_kb → reset + 清缓存</text>
 
-  <!-- sqlite -->
-  <rect x="1340" y="400" width="260" height="160" fill="#FFFFFF" stroke="#1F1A14" stroke-width="2" rx="4"/>
-  <text x="1470" y="430" font-size="18" font-weight="700" fill="#1F1A14" text-anchor="middle">SQLite · 元数据</text>
-  <text x="1470" y="458" font-size="13" fill="#1F1A14" text-anchor="middle">data/metadata.db</text>
-  <text x="1470" y="482" font-size="13" fill="#1F1A14" text-anchor="middle">KnowledgeBase · Document</text>
-  <text x="1470" y="506" font-size="13" fill="#1F1A14" text-anchor="middle">Conversation · Message</text>
-  <text x="1470" y="548" font-size="12" fill="#1F1A14" text-anchor="middle" font-style="italic">async SQLAlchemy 2</text>
+  <rect x="1160" y="400" width="240" height="160" fill="#F2A03B" rx="6"/>
+  <text x="1280" y="430" font-size="18" font-weight="700" fill="#FFFFFF" text-anchor="middle">DocIndex (NEW)</text>
+  <text x="1280" y="458" font-size="13" fill="#FFFFFF" text-anchor="middle">data/doc_index/{kb_id}.pkl</text>
+  <text x="1280" y="482" font-size="13" fill="#FFFFFF" text-anchor="middle">title+filename+summary 三路</text>
+  <text x="1280" y="506" font-size="13" fill="#FFFFFF" text-anchor="middle">为 chunk soft boost 提供信号</text>
+  <text x="1280" y="548" font-size="12" fill="#FFFFFF" text-anchor="middle" font-style="italic">与摘要一起在 ingest 写入</text>
+
+  <rect x="1440" y="400" width="240" height="160" fill="#FFFFFF" stroke="#1F1A14" stroke-width="2" rx="4"/>
+  <text x="1560" y="430" font-size="18" font-weight="700" fill="#1F1A14" text-anchor="middle">SQLite · 元数据</text>
+  <text x="1560" y="458" font-size="13" fill="#1F1A14" text-anchor="middle">data/metadata.db</text>
+  <text x="1560" y="482" font-size="13" fill="#1F1A14" text-anchor="middle">KnowledgeBase · Document</text>
+  <text x="1560" y="506" font-size="13" fill="#1F1A14" text-anchor="middle">Conversation · Message</text>
+  <text x="1560" y="548" font-size="12" fill="#1F1A14" text-anchor="middle" font-style="italic">async SQLAlchemy 2</text>
 
   <!-- vertical arrows from ingest row to storage -->
-  <line x1="370" y1="325" x2="370" y2="398" stroke="#1F1A14" stroke-width="2" marker-end="url(#arrow)"/>
-  <line x1="590" y1="325" x2="590" y2="398" stroke="#1F1A14" stroke-width="2" marker-end="url(#arrow)"/>
-  <line x1="820" y1="325" x2="820" y2="398" stroke="#1F1A14" stroke-width="2" marker-end="url(#arrow)"/>
-  <line x1="1070" y1="325" x2="690" y2="398" stroke="#1F1A14" stroke-width="2" marker-end="url(#arrow)"/>
-  <line x1="1070" y1="325" x2="1110" y2="398" stroke="#1F1A14" stroke-width="2" marker-end="url(#arrow)"/>
-  <line x1="1310" y1="325" x2="1470" y2="398" stroke="#1F1A14" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="370" y1="325" x2="240" y2="398" stroke="#1F1A14" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="590" y1="325" x2="600" y2="398" stroke="#1F1A14" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="820" y1="325" x2="960" y2="398" stroke="#1F1A14" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="1070" y1="325" x2="600" y2="398" stroke="#1F1A14" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="1070" y1="325" x2="960" y2="398" stroke="#1F1A14" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="1310" y1="325" x2="1280" y2="398" stroke="#F2A03B" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="1530" y1="325" x2="1560" y2="398" stroke="#1F1A14" stroke-width="2" marker-end="url(#arrow)"/>
 
   <!-- ============== HYBRID RETRIEVER (ZOOMED) ============== -->
-  <text x="80" y="615" font-size="20" font-weight="700" fill="#1F1A14" letter-spacing="3">混合检索放大 · HybridRetriever.retrieve()</text>
+  <text x="80" y="615" font-size="20" font-weight="700" fill="#1F1A14" letter-spacing="3">混合检索放大 · HybridRetriever.retrieve() + DocIndex soft boost</text>
 
-  <rect x="80" y="635" width="1480" height="280" fill="#FFFFFF" stroke="#1F1A14" stroke-width="2" rx="6"/>
+  <rect x="80" y="635" width="1620" height="290" fill="#FFFFFF" stroke="#1F1A14" stroke-width="2" rx="6"/>
 
   <!-- query -->
   <rect x="110" y="720" width="180" height="80" fill="#FFFFFF" stroke="#1F1A14" stroke-width="2" rx="4"/>
   <text x="200" y="752" font-size="16" font-weight="700" fill="#1F1A14" text-anchor="middle">query</text>
   <text x="200" y="774" font-size="12" fill="#1F1A14" text-anchor="middle">用户问题</text>
-  <text x="200" y="792" font-size="12" fill="#1F1A14" text-anchor="middle" font-style="italic">state.question</text>
+  <text x="200" y="792" font-size="12" fill="#1F1A14" text-anchor="middle" font-style="italic">queries=[q1..qN]</text>
 
   <!-- branch 1: vector -->
   <rect x="330" y="660" width="240" height="100" fill="#044D99" rx="4"/>
@@ -139,118 +138,159 @@
   <text x="450" y="856" font-size="13" fill="#FFFFFF" text-anchor="middle">BM25Store.query</text>
   <text x="450" y="874" font-size="12" fill="#FFFFFF" text-anchor="middle" font-style="italic">rerank_top_k = 20</text>
 
+  <!-- doc-index soft boost (NEW) -->
+  <rect x="330" y="660" width="0" height="0"/>
+  <rect x="620" y="660" width="200" height="100" fill="#F2A03B" rx="4"/>
+  <text x="720" y="690" font-size="15" font-weight="700" fill="#FFFFFF" text-anchor="middle">DocIndex 预筛 (NEW)</text>
+  <text x="720" y="710" font-size="12" fill="#FFFFFF" text-anchor="middle">BM25(title+filename+summary)</text>
+  <text x="720" y="730" font-size="12" fill="#FFFFFF" text-anchor="middle">top-K 文档 → boost_doc_ids</text>
+  <text x="720" y="754" font-size="12" fill="#FFFFFF" text-anchor="middle" font-style="italic">chunk 分数 × 1.2</text>
+
   <!-- RRF fuse -->
-  <rect x="620" y="720" width="220" height="140" fill="#044D99" rx="6"/>
-  <text x="730" y="754" font-size="18" font-weight="700" fill="#FFFFFF" text-anchor="middle">RRF 融合</text>
-  <text x="730" y="780" font-size="13" fill="#FFFFFF" text-anchor="middle">_rrf_fuse()</text>
-  <text x="730" y="804" font-size="13" fill="#FFFFFF" text-anchor="middle">score = Σ 1 / (60 + rank + 1)</text>
-  <text x="730" y="828" font-size="13" fill="#FFFFFF" text-anchor="middle">两路同时命中 → fused</text>
-  <text x="730" y="850" font-size="12" fill="#FFFFFF" text-anchor="middle" font-style="italic">单路 → source 标记</text>
+  <rect x="860" y="720" width="200" height="140" fill="#044D99" rx="6"/>
+  <text x="960" y="754" font-size="18" font-weight="700" fill="#FFFFFF" text-anchor="middle">RRF 融合</text>
+  <text x="960" y="780" font-size="13" fill="#FFFFFF" text-anchor="middle">_rrf_fuse()</text>
+  <text x="960" y="804" font-size="13" fill="#FFFFFF" text-anchor="middle">score = Σ 1/(60+rank+1)</text>
+  <text x="960" y="828" font-size="13" fill="#FFFFFF" text-anchor="middle">两路命中 → fused</text>
+  <text x="960" y="850" font-size="12" fill="#FFFFFF" text-anchor="middle" font-style="italic">+ soft boost 应用</text>
 
   <!-- Rerank -->
-  <rect x="890" y="720" width="240" height="140" fill="#044D99" rx="6"/>
-  <text x="1010" y="754" font-size="18" font-weight="700" fill="#FFFFFF" text-anchor="middle">BGE-Reranker</text>
-  <text x="1010" y="780" font-size="13" fill="#FFFFFF" text-anchor="middle">Cross-Encoder</text>
-  <text x="1010" y="804" font-size="13" fill="#FFFFFF" text-anchor="middle">rerank(query, texts, k)</text>
-  <text x="1010" y="828" font-size="13" fill="#FFFFFF" text-anchor="middle">按 rerank_score 降序</text>
-  <text x="1010" y="850" font-size="12" fill="#FFFFFF" text-anchor="middle" font-style="italic">final_top_k = 5</text>
+  <rect x="1100" y="720" width="220" height="140" fill="#044D99" rx="6"/>
+  <text x="1210" y="754" font-size="18" font-weight="700" fill="#FFFFFF" text-anchor="middle">BGE-Reranker</text>
+  <text x="1210" y="780" font-size="13" fill="#FFFFFF" text-anchor="middle">Cross-Encoder</text>
+  <text x="1210" y="804" font-size="13" fill="#FFFFFF" text-anchor="middle">rerank(query, texts, k)</text>
+  <text x="1210" y="828" font-size="13" fill="#FFFFFF" text-anchor="middle">按 rerank_score 降序</text>
+  <text x="1210" y="850" font-size="12" fill="#FFFFFF" text-anchor="middle" font-style="italic">final_top_k = 5</text>
 
   <!-- Top-K chunks -->
-  <rect x="1180" y="720" width="340" height="140" fill="#FFFFFF" stroke="#1F1A14" stroke-width="2" rx="4"/>
-  <text x="1350" y="752" font-size="18" font-weight="700" fill="#1F1A14" text-anchor="middle">Top-K Chunks</text>
-  <text x="1350" y="780" font-size="13" fill="#1F1A14" text-anchor="middle">id · text · metadata</text>
-  <text x="1350" y="804" font-size="13" fill="#1F1A14" text-anchor="middle">score · rerank_score</text>
-  <text x="1350" y="828" font-size="13" fill="#1F1A14" text-anchor="middle">source: vector / bm25 / fused</text>
-  <text x="1350" y="850" font-size="12" fill="#1F1A14" text-anchor="middle" font-style="italic">给 build_prompt 拼上下文</text>
+  <rect x="1360" y="720" width="320" height="140" fill="#FFFFFF" stroke="#1F1A14" stroke-width="2" rx="4"/>
+  <text x="1520" y="752" font-size="18" font-weight="700" fill="#1F1A14" text-anchor="middle">Top-K Chunks</text>
+  <text x="1520" y="780" font-size="13" fill="#1F1A14" text-anchor="middle">id · text · metadata</text>
+  <text x="1520" y="804" font-size="13" fill="#1F1A14" text-anchor="middle">score · rerank_score · raw_score</text>
+  <text x="1520" y="828" font-size="13" fill="#1F1A14" text-anchor="middle">source: vector / bm25 / fused</text>
+  <text x="1520" y="850" font-size="12" fill="#1F1A14" text-anchor="middle" font-style="italic">→ relevance_check</text>
 
   <!-- arrows -->
   <line x1="290" y1="745" x2="328" y2="700" stroke="#1F1A14" stroke-width="3" marker-end="url(#arrow)"/>
   <line x1="290" y1="775" x2="328" y2="820" stroke="#1F1A14" stroke-width="3" marker-end="url(#arrow)"/>
   <line x1="570" y1="700" x2="618" y2="760" stroke="#1F1A14" stroke-width="3" marker-end="url(#arrow)"/>
   <line x1="570" y1="820" x2="618" y2="820" stroke="#1F1A14" stroke-width="3" marker-end="url(#arrow)"/>
-  <line x1="840" y1="790" x2="888" y2="790" stroke="#1F1A14" stroke-width="3" marker-end="url(#arrow)"/>
-  <line x1="1130" y1="790" x2="1178" y2="790" stroke="#1F1A14" stroke-width="3" marker-end="url(#arrow)"/>
+  <line x1="820" y1="710" x2="858" y2="760" stroke="#F2A03B" stroke-width="3" marker-end="url(#arrow)"/>
+  <line x1="1060" y1="790" x2="1098" y2="790" stroke="#1F1A14" stroke-width="3" marker-end="url(#arrow)"/>
+  <line x1="1320" y1="790" x2="1358" y2="790" stroke="#1F1A14" stroke-width="3" marker-end="url(#arrow)"/>
 
-  <!-- gather hint -->
   <text x="450" y="650" font-size="12" fill="#1F1A14" text-anchor="middle" font-style="italic">asyncio.gather 并行</text>
 
+  <!-- relevance_check inline -->
+  <rect x="110" y="870" width="1570" height="50" fill="#F2A03B" rx="4"/>
+  <text x="140" y="892" font-size="15" font-weight="700" fill="#FFFFFF">relevance_check（Self-RAG）</text>
+  <text x="140" y="912" font-size="12" fill="#FFFFFF">LLM 给 top-10 候选逐个判 relevant=true/false → 清空不相关 → 全不相关则触发 KB→Web 兜底</text>
+  <text x="1620" y="912" font-size="12" fill="#FFFFFF" text-anchor="end" font-style="italic">relevance_clear_all → web_fallback</text>
+
   <!-- ============== BOTTOM RAIL: GENERATE ============== -->
-  <text x="80" y="965" font-size="20" font-weight="700" fill="#1F1A14" letter-spacing="3">生成轨 · RAGAgent.astream()</text>
+  <text x="80" y="980" font-size="20" font-weight="700" fill="#1F1A14" letter-spacing="3">生成轨 · RAGAgent.astream()</text>
 
   <!-- prompt builder -->
-  <rect x="80" y="985" width="280" height="140" fill="#04B24F" rx="6"/>
-  <text x="220" y="1015" font-size="18" font-weight="700" fill="#FFFFFF" text-anchor="middle">build_prompt</text>
-  <text x="220" y="1043" font-size="13" fill="#FFFFFF" text-anchor="middle">按 intent 选模板</text>
-  <text x="220" y="1065" font-size="13" fill="#FFFFFF" text-anchor="middle">_format_chunks · _format_web</text>
-  <text x="220" y="1087" font-size="13" fill="#FFFFFF" text-anchor="middle">注入最近 6 条历史</text>
-  <text x="220" y="1109" font-size="12" fill="#FFFFFF" text-anchor="middle" font-style="italic">[n] 编号引用</text>
+  <rect x="80" y="1000" width="260" height="160" fill="#04B24F" rx="6"/>
+  <text x="210" y="1030" font-size="18" font-weight="700" fill="#FFFFFF" text-anchor="middle">build_prompt</text>
+  <text x="210" y="1058" font-size="13" fill="#FFFFFF" text-anchor="middle">按 effective_intent 选模板</text>
+  <text x="210" y="1080" font-size="13" fill="#FFFFFF" text-anchor="middle">_format_chunks · _format_web</text>
+  <text x="210" y="1102" font-size="13" fill="#FFFFFF" text-anchor="middle">注入 summary + 最近 6 条</text>
+  <text x="210" y="1124" font-size="12" fill="#FFFFFF" text-anchor="middle" font-style="italic">[n] 编号引用</text>
 
   <!-- llm stream -->
-  <rect x="400" y="985" width="280" height="140" fill="#044D99" rx="6"/>
-  <text x="540" y="1015" font-size="18" font-weight="700" fill="#FFFFFF" text-anchor="middle">LLM stream</text>
-  <text x="540" y="1043" font-size="13" fill="#FFFFFF" text-anchor="middle">LLMFactory.stream_chat()</text>
-  <text x="540" y="1065" font-size="13" fill="#FFFFFF" text-anchor="middle">逐 token yield</text>
-  <text x="540" y="1087" font-size="13" fill="#FFFFFF" text-anchor="middle">AgentEvent(type=token)</text>
-  <text x="540" y="1109" font-size="12" fill="#FFFFFF" text-anchor="middle" font-style="italic">首 token &lt; 2s</text>
+  <rect x="380" y="1000" width="260" height="160" fill="#044D99" rx="6"/>
+  <text x="510" y="1030" font-size="18" font-weight="700" fill="#FFFFFF" text-anchor="middle">LLM stream</text>
+  <text x="510" y="1058" font-size="13" fill="#FFFFFF" text-anchor="middle">LLMFactory.stream_chat()</text>
+  <text x="510" y="1080" font-size="13" fill="#FFFFFF" text-anchor="middle">逐 token yield</text>
+  <text x="510" y="1102" font-size="13" fill="#FFFFFF" text-anchor="middle">AgentEvent(type=token)</text>
+  <text x="510" y="1124" font-size="12" fill="#FFFFFF" text-anchor="middle" font-style="italic">首 token &lt; 2s</text>
 
   <!-- sources build -->
-  <rect x="720" y="985" width="280" height="140" fill="#04B24F" rx="6"/>
-  <text x="860" y="1015" font-size="18" font-weight="700" fill="#FFFFFF" text-anchor="middle">_build_sources</text>
-  <text x="860" y="1043" font-size="13" fill="#FFFFFF" text-anchor="middle">chunks → SourceItem[]</text>
-  <text x="860" y="1065" font-size="13" fill="#FFFFFF" text-anchor="middle">web → source_type=web</text>
-  <text x="860" y="1087" font-size="13" fill="#FFFFFF" text-anchor="middle">doc_title · page · score</text>
-  <text x="860" y="1109" font-size="12" fill="#FFFFFF" text-anchor="middle" font-style="italic">前端 SourceList</text>
+  <rect x="680" y="1000" width="260" height="160" fill="#04B24F" rx="6"/>
+  <text x="810" y="1030" font-size="18" font-weight="700" fill="#FFFFFF" text-anchor="middle">_build_sources</text>
+  <text x="810" y="1058" font-size="13" fill="#FFFFFF" text-anchor="middle">chunks → SourceItem[]</text>
+  <text x="810" y="1080" font-size="13" fill="#FFFFFF" text-anchor="middle">web → source_type=web</text>
+  <text x="810" y="1102" font-size="13" fill="#FFFFFF" text-anchor="middle">doc_title · page · score</text>
+  <text x="810" y="1124" font-size="12" fill="#FFFFFF" text-anchor="middle" font-style="italic">refused=True → sources=[]</text>
 
   <!-- persist -->
-  <rect x="1040" y="985" width="280" height="140" fill="#044D99" rx="6"/>
-  <text x="1180" y="1015" font-size="18" font-weight="700" fill="#FFFFFF" text-anchor="middle">_persist_turn</text>
-  <text x="1180" y="1043" font-size="13" fill="#FFFFFF" text-anchor="middle">写入 Conversation + Message</text>
-  <text x="1180" y="1065" font-size="13" fill="#FFFFFF" text-anchor="middle">sources_json 持久化</text>
-  <text x="1180" y="1087" font-size="13" fill="#FFFFFF" text-anchor="middle">commit → 返回 conv_id</text>
-  <text x="1180" y="1109" font-size="12" fill="#FFFFFF" text-anchor="middle" font-style="italic">失败 → error 事件</text>
+  <rect x="980" y="1000" width="260" height="160" fill="#044D99" rx="6"/>
+  <text x="1110" y="1030" font-size="18" font-weight="700" fill="#FFFFFF" text-anchor="middle">_persist_turn</text>
+  <text x="1110" y="1058" font-size="13" fill="#FFFFFF" text-anchor="middle">写入 Conversation + Message</text>
+  <text x="1110" y="1080" font-size="13" fill="#FFFFFF" text-anchor="middle">sources_json + doc_hits_json</text>
+  <text x="1110" y="1102" font-size="13" fill="#FFFFFF" text-anchor="middle">commit → 返回 conv_id</text>
+  <text x="1110" y="1124" font-size="12" fill="#FFFFFF" text-anchor="middle" font-style="italic">长对话 → summary 压缩</text>
 
   <!-- SSE emit -->
-  <rect x="1360" y="985" width="220" height="140" fill="#F61B27" rx="6"/>
-  <text x="1470" y="1015" font-size="18" font-weight="700" fill="#FFFFFF" text-anchor="middle">SSE emit</text>
-  <text x="1470" y="1043" font-size="13" fill="#FFFFFF" text-anchor="middle">intent → sources</text>
-  <text x="1470" y="1065" font-size="13" fill="#FFFFFF" text-anchor="middle">token* → meta → final</text>
-  <text x="1470" y="1087" font-size="13" fill="#FFFFFF" text-anchor="middle">end (ping=15)</text>
-  <text x="1470" y="1109" font-size="12" fill="#FFFFFF" text-anchor="middle" font-style="italic">前端 ofetch 解析</text>
+  <rect x="1280" y="1000" width="220" height="160" fill="#F61B27" rx="6"/>
+  <text x="1390" y="1030" font-size="18" font-weight="700" fill="#FFFFFF" text-anchor="middle">SSE emit</text>
+  <text x="1390" y="1058" font-size="13" fill="#FFFFFF" text-anchor="middle">intent → sources</text>
+  <text x="1390" y="1080" font-size="13" fill="#FFFFFF" text-anchor="middle">doc_hits → token* → meta</text>
+  <text x="1390" y="1102" font-size="13" fill="#FFFFFF" text-anchor="middle">meta.refused → final</text>
+  <text x="1390" y="1124" font-size="12" fill="#FFFFFF" text-anchor="middle" font-style="italic">end (ping=15)</text>
+
+  <!-- CONFIDENCE GATE BLOCK (NEW) -->
+  <rect x="1530" y="1000" width="170" height="160" fill="#F61B27" rx="6"/>
+  <text x="1615" y="1024" font-size="13" font-weight="700" fill="#FFFFFF" text-anchor="middle">CONFIDENCE</text>
+  <text x="1615" y="1042" font-size="13" font-weight="700" fill="#FFFFFF" text-anchor="middle">GATE</text>
+  <text x="1615" y="1066" font-size="11" fill="#FFFFFF" text-anchor="middle">KB+web 都空</text>
+  <text x="1615" y="1082" font-size="11" fill="#FFFFFF" text-anchor="middle">→ refused=True</text>
+  <text x="1615" y="1100" font-size="11" fill="#FFFFFF" text-anchor="middle">astream 跳过</text>
+  <text x="1615" y="1116" font-size="11" fill="#FFFFFF" text-anchor="middle">LLMFactory</text>
+  <text x="1615" y="1136" font-size="11" fill="#FFFFFF" text-anchor="middle">发固定 token</text>
+  <text x="1615" y="1152" font-size="11" fill="#FFFFFF" text-anchor="middle" font-style="italic">ANSWER_REFUSE</text>
 
   <!-- arrows bottom rail -->
-  <line x1="360" y1="1055" x2="398" y2="1055" stroke="#1F1A14" stroke-width="3" marker-end="url(#arrow)"/>
-  <line x1="680" y1="1055" x2="718" y2="1055" stroke="#1F1A14" stroke-width="3" marker-end="url(#arrow)"/>
-  <line x1="1000" y1="1055" x2="1038" y2="1055" stroke="#1F1A14" stroke-width="3" marker-end="url(#arrow)"/>
-  <line x1="1320" y1="1055" x2="1358" y2="1055" stroke="#1F1A14" stroke-width="3" marker-end="url(#arrow)"/>
+  <line x1="340" y1="1080" x2="378" y2="1080" stroke="#1F1A14" stroke-width="3" marker-end="url(#arrow)"/>
+  <line x1="640" y1="1080" x2="678" y2="1080" stroke="#1F1A14" stroke-width="3" marker-end="url(#arrow)"/>
+  <line x1="940" y1="1080" x2="978" y2="1080" stroke="#1F1A14" stroke-width="3" marker-end="url(#arrow)"/>
+  <line x1="1240" y1="1080" x2="1278" y2="1080" stroke="#1F1A14" stroke-width="3" marker-end="url(#arrow)"/>
 
-  <!-- vertical arrow from hybrid retriever output to build_prompt -->
-  <polyline points="1350,860 1350,940 220,940 220,983" fill="none" stroke="#1F1A14" stroke-width="3" marker-end="url(#arrow)"/>
-  <text x="780" y="935" font-size="13" font-weight="700" fill="#1F1A14" text-anchor="middle">chunks →</text>
+  <!-- vertical arrow from chunks to build_prompt -->
+  <polyline points="1520,860 1520,950 210,950 210,998" fill="none" stroke="#1F1A14" stroke-width="3" marker-end="url(#arrow)"/>
+  <text x="780" y="945" font-size="13" font-weight="700" fill="#1F1A14" text-anchor="middle">chunks →</text>
+
+  <!-- CONFIDENCE GATE BYPASS (NEW, red) -->
+  <polyline points="210,1160 210,1180 1615,1180 1615,1160" fill="none" stroke="#F61B27" stroke-width="3" marker-end="url(#arrowW)"/>
+  <text x="900" y="1175" font-size="12" font-weight="700" fill="#F61B27" text-anchor="middle">build_prompt 短路（KB+web 都空时）</text>
 
   <!-- ============== INVARIANTS / CONTRACTS ============== -->
-  <text x="80" y="1180" font-size="20" font-weight="700" fill="#1F1A14" letter-spacing="3">不变量与契约</text>
+  <text x="80" y="1245" font-size="20" font-weight="700" fill="#1F1A14" letter-spacing="3">不变量与契约</text>
 
-  <rect x="80" y="1200" width="380" height="100" fill="#FFFFFF" stroke="#1F1A14" stroke-width="2" rx="4"/>
-  <text x="270" y="1228" font-size="15" font-weight="700" fill="#1F1A14" text-anchor="middle">chunk_id 对齐</text>
-  <text x="270" y="1252" font-size="13" fill="#1F1A14" text-anchor="middle">Chroma 与 BM25 共用同一个 uuid</text>
-  <text x="270" y="1274" font-size="12" fill="#1F1A14" text-anchor="middle" font-style="italic">RRF 才能按 id 合并两路</text>
-  <text x="270" y="1292" font-size="12" fill="#1F1A14" text-anchor="middle" font-style="italic">delete_by_doc_id 必须双删</text>
+  <rect x="80" y="1265" width="380" height="100" fill="#FFFFFF" stroke="#1F1A14" stroke-width="2" rx="4"/>
+  <text x="270" y="1293" font-size="15" font-weight="700" fill="#1F1A14" text-anchor="middle">chunk_id 对齐</text>
+  <text x="270" y="1317" font-size="13" fill="#1F1A14" text-anchor="middle">Chroma 与 BM25 共用同一个 uuid</text>
+  <text x="270" y="1339" font-size="12" fill="#1F1A14" text-anchor="middle" font-style="italic">RRF 才能按 id 合并两路</text>
+  <text x="270" y="1357" font-size="12" fill="#1F1A14" text-anchor="middle" font-style="italic">delete_by_doc_id 必须双删</text>
 
-  <rect x="500" y="1200" width="380" height="100" fill="#FFFFFF" stroke="#1F1A14" stroke-width="2" rx="4"/>
-  <text x="690" y="1228" font-size="15" font-weight="700" fill="#1F1A14" text-anchor="middle">异步边界</text>
-  <text x="690" y="1252" font-size="13" fill="#1F1A14" text-anchor="middle">CPU/IO 阻塞走 to_thread</text>
-  <text x="690" y="1274" font-size="13" fill="#1F1A14" text-anchor="middle">不阻塞事件循环</text>
-  <text x="690" y="1292" font-size="12" fill="#1F1A14" text-anchor="middle" font-style="italic">外部 LLM / 联网也走异步</text>
+  <rect x="500" y="1265" width="380" height="100" fill="#FFFFFF" stroke="#1F1A14" stroke-width="2" rx="4"/>
+  <text x="690" y="1293" font-size="15" font-weight="700" fill="#1F1A14" text-anchor="middle">异步边界</text>
+  <text x="690" y="1317" font-size="13" fill="#1F1A14" text-anchor="middle">CPU/IO 阻塞走 to_thread</text>
+  <text x="690" y="1339" font-size="13" fill="#1F1A14" text-anchor="middle">不阻塞事件循环</text>
+  <text x="690" y="1357" font-size="12" fill="#1F1A14" text-anchor="middle" font-style="italic">外部 LLM / 联网也走异步</text>
 
-  <rect x="920" y="1200" width="380" height="100" fill="#FFFFFF" stroke="#1F1A14" stroke-width="2" rx="4"/>
-  <text x="1110" y="1228" font-size="15" font-weight="700" fill="#1F1A14" text-anchor="middle">状态隔离</text>
-  <text x="1110" y="1252" font-size="13" fill="#1F1A14" text-anchor="middle">AsyncSession 不能跨线程</text>
-  <text x="1110" y="1274" font-size="13" fill="#1F1A14" text-anchor="middle">提前缓存 kb.id / slug</text>
-  <text x="1110" y="1292" font-size="12" fill="#1F1A14" text-anchor="middle" font-style="italic">避免 MissingGreenlet</text>
+  <rect x="920" y="1265" width="380" height="100" fill="#F61B27" rx="4"/>
+  <text x="1110" y="1293" font-size="15" font-weight="700" fill="#FFFFFF" text-anchor="middle">失败兜底（多层级）</text>
+  <text x="1110" y="1317" font-size="13" fill="#FFFFFF" text-anchor="middle">classify 失败 → 启发式关键词</text>
+  <text x="1110" y="1339" font-size="13" fill="#FFFFFF" text-anchor="middle">KB 空 → web 兜底</text>
+  <text x="1110" y="1357" font-size="12" fill="#FFFFFF" text-anchor="middle" font-style="italic">KB+web 都空 → 拒绝回答</text>
 
-  <rect x="1340" y="1200" width="260" height="100" fill="#F61B27" rx="4"/>
-  <text x="1470" y="1228" font-size="15" font-weight="700" fill="#FFFFFF" text-anchor="middle">失败兜底</text>
-  <text x="1470" y="1252" font-size="13" fill="#FFFFFF" text-anchor="middle">分类失败 → 启发式</text>
-  <text x="1470" y="1274" font-size="13" fill="#FFFFFF" text-anchor="middle">检索失败 → [] 直答</text>
-  <text x="1470" y="1292" font-size="12" fill="#FFFFFF" text-anchor="middle" font-style="italic">持久化失败 → error 事件</text>
+  <rect x="1340" y="1265" width="360" height="100" fill="#FFFFFF" stroke="#1F1A14" stroke-width="2" rx="4"/>
+  <text x="1520" y="1293" font-size="15" font-weight="700" fill="#1F1A14" text-anchor="middle">状态隔离</text>
+  <text x="1520" y="1317" font-size="13" fill="#1F1A14" text-anchor="middle">AsyncSession 不能跨线程</text>
+  <text x="1520" y="1339" font-size="13" fill="#1F1A14" text-anchor="middle">提前缓存 kb.id / slug</text>
+  <text x="1520" y="1357" font-size="12" fill="#1F1A14" text-anchor="middle" font-style="italic">避免 MissingGreenlet</text>
+
+  <!-- legend -->
+  <text x="80" y="1410" font-size="13" font-weight="700" fill="#1F1A14">图例</text>
+  <rect x="130" y="1397" width="20" height="20" fill="#044D99"/>
+  <text x="160" y="1412" font-size="12" fill="#1F1A14">业务节点</text>
+  <rect x="240" y="1397" width="20" height="20" fill="#04B24F"/>
+  <text x="270" y="1412" font-size="12" fill="#1F1A14">执行节点（IO）</text>
+  <rect x="380" y="1397" width="20" height="20" fill="#F2A03B"/>
+  <text x="410" y="1412" font-size="12" fill="#1F1A14">新引入（DocIndex / relevance）</text>
+  <rect x="570" y="1397" width="20" height="20" fill="#F61B27"/>
+  <text x="600" y="1412" font-size="12" fill="#1F1A14">兜底 / 拒绝 / 短路</text>
+  <text x="750" y="1412" font-size="12" fill="#1F1A14" font-style="italic">来源：backend/app/services/agent.py · retriever.py · ingest.py · api/v1/chat.py</text>
 </svg>

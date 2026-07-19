@@ -34,7 +34,7 @@ const formDesc = ref('')
 const formChunkSize = ref(600)
 const formChunkOverlap = ref(120)
 const formEmbeddingModel = ref('')
-const formEmbeddingDim = ref(1024)
+const formEmbeddingDim = ref<number | null>(768)
 const editingId = ref<number | null>(null)
 const search = ref('')
 const statsMap = ref<Record<number, any>>({})
@@ -63,7 +63,7 @@ function openCreate() {
   formChunkSize.value = 600
   formChunkOverlap.value = 120
   formEmbeddingModel.value = ''
-  formEmbeddingDim.value = 1024
+  formEmbeddingDim.value = 768
   showAdvanced.value = false
   editingId.value = null
   showCreate.value = true
@@ -74,8 +74,9 @@ function openEdit(kb: KnowledgeBase) {
   formDesc.value = kb.description || ''
   formChunkSize.value = kb.chunk_size
   formChunkOverlap.value = kb.chunk_overlap
-  formEmbeddingModel.value = kb.embedding_model
-  formEmbeddingDim.value = kb.embedding_dim
+  // KB 显式存的覆盖值才回填；null 表示「跟随后端 .env」 — 留空即可
+  formEmbeddingModel.value = kb.embedding_model ?? ''
+  formEmbeddingDim.value = kb.embedding_dim ?? null
   showAdvanced.value = false
   editingId.value = kb.id
   showEdit.value = true
@@ -91,7 +92,7 @@ async function submitCreate() {
   if (formChunkSize.value) body.chunk_size = formChunkSize.value
   body.chunk_overlap = formChunkOverlap.value
   if (formEmbeddingModel.value.trim()) body.embedding_model = formEmbeddingModel.value.trim()
-  if (formEmbeddingDim.value) body.embedding_dim = formEmbeddingDim.value
+  if (formEmbeddingDim.value != null) body.embedding_dim = formEmbeddingDim.value
   try {
     const kb = await store.create(body)
     showCreate.value = false
@@ -115,7 +116,7 @@ async function submitEdit() {
       chunk_size: formChunkSize.value,
       chunk_overlap: formChunkOverlap.value,
       embedding_model: formEmbeddingModel.value.trim() || undefined,
-      embedding_dim: formEmbeddingDim.value,
+      embedding_dim: formEmbeddingDim.value ?? undefined,
     })
     showEdit.value = false
     await refreshStats(id)
@@ -320,11 +321,11 @@ onMounted(() => {
           <div class="field-row">
             <div class="field">
               <label>embedding_model</label>
-              <input v-model="formEmbeddingModel" />
+              <input v-model="formEmbeddingModel" placeholder="（跟随后端 .env）" />
             </div>
             <div class="field">
               <label>embedding_dim</label>
-              <input type="number" v-model.number="formEmbeddingDim" min="64" max="4096" />
+              <input type="number" v-model.number="formEmbeddingDim" min="64" max="4096" placeholder="（跟随）" />
             </div>
           </div>
           <p class="hint">分块参数只影响之后新入库的文档；知识库已有向量时不能直接修改 Embedding 配置。</p>

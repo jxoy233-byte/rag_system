@@ -112,3 +112,58 @@ export const convApi = {
     api('/api/v1/chat/conversations/' + id, { method: 'PATCH', body }),
   remove: (id: number) => api('/api/v1/chat/conversations/' + id, { method: 'DELETE' }),
 }
+
+export interface ChunkDetail {
+  chunk_id: string
+  doc_id: number
+  kb_id: number
+  text: string
+  page: number | null
+  section: string | null
+  score: number | null
+  rerank_score: number | null
+  document: string | null
+  source_type: 'vector' | 'bm25' | 'web'
+}
+
+export interface ChunkListItem {
+  chunk_id: string
+  doc_id: number
+  kb_id: number
+  length: number
+  preview: string
+  page: number | null
+  section: string | null
+  document: string | null
+  chunk_index: number | null
+}
+
+export interface ContentSegment {
+  chunk_index: number | null
+  page: number | null
+  section: string | null
+  text: string
+}
+
+export interface DocumentContent {
+  doc_id: number
+  kb_id: number
+  title: string | null
+  segments: ContentSegment[]
+  full_text: string
+}
+
+export const chunkApi = {
+  listForDoc: (kbId: number, docId: number) =>
+    api<ChunkListItem[]>(
+      `/api/v1/knowledge-bases/${kbId}/documents/${docId}/chunks`,
+    ),
+  getDetail: (kbId: number, docId: number, chunkId: string) =>
+    api<ChunkDetail>(
+      `/api/v1/knowledge-bases/${kbId}/documents/${docId}/chunks/${chunkId}`,
+    ),
+  getContent: (kbId: number, docId: number) =>
+    api<DocumentContent>(
+      `/api/v1/knowledge-bases/${kbId}/documents/${docId}/content`,
+    ),
+}

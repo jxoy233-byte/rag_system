@@ -35,7 +35,7 @@
 - Agent 编排：**LangGraph**（StateGraph + 路由 + 工具）
 - 向量库：**ChromaDB**（默认本地持久化）/ Qdrant（生产可切换）
 - 关键词检索：**BM25**（rank_bm25 + jieba 分词，每 KB 一份 pickle）
-- Embedding：**BAAI/bge-m3**（本地 FlagEmbedding）/ OpenAI text-embedding-3-small（API）/ mock
+- Embedding：**BAAI/bge-base-zh-v1.5**（本地 FlagEmbedding）/ OpenAI text-embedding-3-small（API）/ mock
 - 重排序：**BAAI/bge-reranker-base**（本地，约 280MB）/ 关闭（`RERANK_PROVIDER=none`）
 - 联网搜索：**Tavily**（默认）/ DuckDuckGo（备用，无 Key）
 - 图片理解：**Qwen3-VL-2B-Instruct**（本地）/ OpenAI 兼容 VLM（可选）

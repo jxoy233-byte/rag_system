@@ -22,9 +22,12 @@ import { useKnowledgeBaseStore } from '@/stores/knowledgeBase'
 import { useSettingsStore } from '@/stores/settings'
 import { isTauri } from '@/utils'
 import { invoke } from '@tauri-apps/api/core'
+import { chunkApi, type ChunkDetail } from '@/api/client'
+import type { Source } from '@/types'
 import KnowledgePicker from './KnowledgePicker.vue'
 import MessageBubble from './MessageBubble.vue'
 import ConversationList from './ConversationList.vue'
+import AppDrawer from './AppDrawer.vue'
 
 const chat = useChatStore()
 const kbStore = useKnowledgeBaseStore()
@@ -41,6 +44,20 @@ const scrollerRef = ref<HTMLElement | null>(null)
 const inputRef = ref<HTMLTextAreaElement | null>(null)
 const showHistory = ref(false)
 const dragOver = ref(false)
+
+// 引用 chip 抽屉状态
+const chunkDrawerOpen = ref(false)
+const chunkDetail = ref<ChunkDetail | null>(null)
+const chunkLoading = ref(false)
+const chunkError = ref<string | null>(null)
+// 记一下最近一次点击的 payload，给抽屉 footer 用（外链/路由跳转）
+const lastChunkPayload = ref<{
+  kbId: number | null
+  docId: number | null
+  chunkId: string
+  source: Source
+} | null>(null)
+const payloadForFooter = computed(() => lastChunkPayload.value)
 
 const placeholder = computed(() =>
   settings.currentKbId
@@ -109,6 +126,59 @@ function gotoSearch() {
 
 function jumpToSource(payload: { kbId: number; docId: number }) {
   router.push(`/docs/${payload.kbId}?doc=${payload.docId}`)
+}
+
+async function openChunk(payload: {
+  kbId: number | null
+  docId: number | null
+  chunkId: string
+  source: Source
+}) {
+  chunkDrawerOpen.value = true
+  lastChunkPayload.value = payload
+  chunkDetail.value = null
+  chunkError.value = null
+  chunkLoading.value = true
+
+  const src = payload.source
+  // 兜底：bm25/web 来源或越界时，ChatPanel 拿不到 chunk_id，直接用 source.snippet
+  // 拼一个「摘要视图」，保证任何引用点击都有反馈，不静默失败。
+  const fallback = (): ChunkDetail => ({
+    chunk_id: payload.chunkId || '',
+    doc_id: payload.docId ?? 0,
+    kb_id: payload.kbId ?? 0,
+    text: src.snippet,
+    page: src.page ?? null,
+    section: null,
+    score: src.score ?? null,
+    rerank_score: src.rerank_score ?? null,
+    document: src.document || src.url || null,
+    source_type: src.source_type,
+  })
+
+  if (!payload.chunkId || payload.kbId == null || payload.docId == null) {
+    chunkDetail.value = fallback()
+    chunkLoading.value = false
+    return
+  }
+
+  try {
+    chunkDetail.value = await chunkApi.getDetail(payload.kbId, payload.docId, payload.chunkId)
+  } catch (e: any) {
+    // 后端拉失败也不应该只显示 error——用 snippet 兜底，至少让用户看到摘要
+    chunkDetail.value = fallback()
+    chunkError.value = e?.message || '加载引用详情失败（已显示摘要）'
+  } finally {
+    chunkLoading.value = false
+  }
+}
+
+function gotoChunkDoc() {
+  if (!chunkDetail.value) return
+  const { kb_id, doc_id } = chunkDetail.value
+  if (!kb_id || !doc_id) return
+  router.push(`/docs/${kb_id}?doc=${doc_id}`)
+  chunkDrawerOpen.value = false
 }
 
 function gotoSettings() {
@@ -264,7 +334,9 @@ async function onDropFiles(e: DragEvent) {
      :index="i"
      :message="m"
      :sources="m.sources"
+     :doc-hits="m.doc_hits"
      @jump-source="jumpToSource"
+     @open-chunk="openChunk"
    />
    <div v-if="chat.error && !chat.streaming" class="global-error">
      {{ chat.error }}
@@ -301,6 +373,42 @@ async function onDropFiles(e: DragEvent) {
     </footer>
 
     <ConversationList :open="showHistory" @close="showHistory = false" />
+
+    <!-- 引用 chip 抽屉：显示 chunk 完整内容 + 跳转文档 -->
+    <AppDrawer
+      :open="chunkDrawerOpen"
+      :title="chunkDetail?.document || '引用详情'"
+      :width="480"
+      @update:open="chunkDrawerOpen = $event"
+    >
+      <div v-if="chunkLoading" class="chunk-state">加载中…</div>
+      <div v-else-if="chunkError && !chunkDetail" class="chunk-state chunk-error">{{ chunkError }}</div>
+      <div v-else-if="chunkDetail" class="chunk-detail">
+        <div class="chunk-meta">
+          <span v-if="chunkDetail.page != null">p.{{ chunkDetail.page }}</span>
+          <span v-if="chunkDetail.section">§{{ chunkDetail.section }}</span>
+          <span v-if="chunkDetail.score != null">· 相关度 {{ Math.round(chunkDetail.score * 100) }}%</span>
+          <span v-if="chunkDetail.rerank_score != null">· 重排 {{ Math.round(chunkDetail.rerank_score * 100) }}%</span>
+          <span v-if="chunkDetail.source_type === 'web'" class="web-badge">· 网络</span>
+        </div>
+        <pre class="chunk-text">{{ chunkDetail.text }}</pre>
+        <div v-if="chunkError" class="chunk-fallback-hint">{{ chunkError }}</div>
+      </div>
+      <template #footer>
+        <div class="drawer-actions">
+          <a
+            v-if="payloadForFooter && payloadForFooter.source.url"
+            :href="payloadForFooter.source.url"
+            target="_blank"
+            rel="noopener"
+            class="btn-primary"
+          >打开外链</a>
+          <button class="btn-primary" :disabled="!chunkDetail || !chunkDetail.doc_id" @click="gotoChunkDoc">
+            跳转到文档
+          </button>
+        </div>
+      </template>
+    </AppDrawer>
   </div>
 </template>
 
@@ -472,5 +580,78 @@ async function onDropFiles(e: DragEvent) {
 .drag-overlay p {
   font-size: 14px;
   opacity: 0.9;
+}
+
+/* ===== 引用 chip 抽屉 ===== */
+.chunk-state {
+  padding: 40px 0;
+  text-align: center;
+  color: var(--text-soft);
+  font-size: 13px;
+}
+.chunk-state.chunk-error {
+  color: var(--danger);
+}
+.chunk-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.chunk-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-soft);
+  padding-bottom: 10px;
+  border-bottom: 1px dashed var(--border);
+}
+.chunk-text {
+  margin: 0;
+  padding: 12px;
+  background: var(--bg-soft);
+  border-radius: 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 60vh;
+  overflow: auto;
+}
+.web-badge {
+  background: #fef3c7;
+  color: #92400e;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+}
+.chunk-fallback-hint {
+  font-size: 11px;
+  color: var(--text-soft);
+  border-top: 1px dashed var(--border);
+  padding-top: 8px;
+}
+.drawer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.btn-primary {
+  padding: 6px 14px;
+  border: none;
+  border-radius: 6px;
+  background: var(--primary);
+  color: var(--primary-fg);
+  font-size: 13px;
+  cursor: pointer;
+}
+.btn-primary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.btn-primary:hover:not(:disabled) {
+  filter: brightness(0.95);
 }
 </style>

@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { streamChat, convApi } from '@/api/client'
 import { useSettingsStore } from '@/stores/settings'
-import type { ChatMessage, ChatMeta, Source } from '@/types'
+import type { ChatMessage, ChatMeta, DocHit, Source } from '@/types'
 
 export interface ConversationItem {
   id: number
@@ -126,6 +126,7 @@ export const useChatStore = defineStore('chat', () => {
        },
      )
      let collectedSources: Source[] = []
+     let collectedDocHits: DocHit[] = []
      let pendingMeta: ChatMeta | null = null
      for await (const ev of gen) {
        if (controller.signal.aborted) break
@@ -144,6 +145,15 @@ export const useChatStore = defineStore('chat', () => {
            collectedSources = data.sources || []
            assistantMsg.sources = collectedSources
            assistantMsg.thinking = false
+           messages.value = [...messages.value.slice(0, -1), { ...assistantMsg }]
+         } catch {
+           /* skip */
+         }
+       } else if (ev.event === 'doc_hits') {
+         try {
+           const data = JSON.parse(ev.data) as { doc_hits: DocHit[] }
+           collectedDocHits = data.doc_hits || []
+           assistantMsg.doc_hits = collectedDocHits
            messages.value = [...messages.value.slice(0, -1), { ...assistantMsg }]
          } catch {
            /* skip */
@@ -167,6 +177,9 @@ export const useChatStore = defineStore('chat', () => {
            }
            assistantMsg.latency_ms = data.meta.latency_ms
            assistantMsg.intent = data.meta.intent
+           // 信心闸门：refused=true 时把标记写到消息上，让 MessageBubble 切换渲染样式
+           assistantMsg.refused = data.meta.refused ?? false
+           messages.value = [...messages.value.slice(0, -1), { ...assistantMsg }]
          } catch { /* skip */ }
        } else if (ev.event === 'error') {
          try {

@@ -1,14 +1,15 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, computed, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Upload, FileText, Trash2, RefreshCw, Search, ArrowLeft, AlertCircle, CheckCircle2, Clock, X, RotateCcw } from 'lucide-vue-next'
-import { docApi, kbApi } from '@/api/client'
+import { Upload, FileText, Trash2, RefreshCw, Search, ArrowLeft, AlertCircle, CheckCircle2, Clock, X, RotateCcw, Sparkles } from 'lucide-vue-next'
+import { docApi, kbApi, chunkApi, type ChunkListItem, type DocumentContent } from '@/api/client'
 import { isTauri } from '@/utils'
 import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import type { UnlistenFn } from '@tauri-apps/api/event'
 import type { Document, KnowledgeBase } from '@/types'
 import { formatBytes, formatDate } from '@/utils'
+import AppDrawer from '@/components/AppDrawer.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -37,6 +38,21 @@ const rowRefs = new Map<number, HTMLElement>()
 let fetching = false
 let pollTimer: number | null = null
 let unlistenDragDrop: UnlistenFn | null = null
+
+// 切片列表抽屉状态
+const chunkDrawerOpen = ref(false)
+const chunkListDoc = ref<Document | null>(null)
+const chunkList = ref<ChunkListItem[]>([])
+const chunkListLoading = ref(false)
+const chunkListError = ref<string | null>(null)
+
+// 原文/切分 切换
+type ViewMode = 'chunks' | 'original'
+const viewMode = ref<ViewMode>('chunks')
+const originalContent = ref<DocumentContent | null>(null)
+const originalLoading = ref(false)
+const originalError = ref<string | null>(null)
+let originalLoadedFor: number | null = null
 
 function setRowRef(id: number, el: HTMLElement | null) {
   if (el) rowRefs.set(id, el)
@@ -220,6 +236,53 @@ function onDrop(e: DragEvent) {
   if (e.dataTransfer?.files) upload(e.dataTransfer.files)
 }
 
+async function openChunkList(doc: Document) {
+  // 关闭 delete/retry 二次确认的计时，避免两个弹层打架
+  cancelDeleteConfirm()
+  chunkListDoc.value = doc
+  // 每次打开都重置 view，避免上一次打开停留在「原文」导致用户看到上一份文档内容
+  viewMode.value = 'chunks'
+  originalContent.value = null
+  originalLoadedFor = null
+  chunkDrawerOpen.value = true
+  chunkListLoading.value = true
+  chunkListError.value = null
+  chunkList.value = []
+  try {
+    chunkList.value = await chunkApi.listForDoc(kbId.value, doc.id)
+  } catch (e: any) {
+    chunkListError.value = e?.data?.detail || e?.message || '加载切片失败'
+  } finally {
+    chunkListLoading.value = false
+  }
+}
+
+async function switchView(mode: ViewMode) {
+  if (viewMode.value === mode) return
+  viewMode.value = mode
+  if (
+    mode === 'original' &&
+    chunkListDoc.value &&
+    originalLoadedFor !== chunkListDoc.value.id
+  ) {
+    await loadOriginal()
+  }
+}
+
+async function loadOriginal() {
+  if (!chunkListDoc.value) return
+  originalLoading.value = true
+  originalError.value = null
+  try {
+    originalContent.value = await chunkApi.getContent(kbId.value, chunkListDoc.value.id)
+    originalLoadedFor = chunkListDoc.value.id
+  } catch (e: any) {
+    originalError.value = e?.data?.detail || e?.message || '加载原文失败'
+  } finally {
+    originalLoading.value = false
+  }
+}
+
 function statusIcon(s: string) {
   if (s === 'ready') return CheckCircle2
   if (s === 'failed') return AlertCircle
@@ -303,7 +366,7 @@ onBeforeUnmount(() => {
       <input
         type="file"
         multiple
-        accept=".pdf,.docx,.pptx,.md,.txt,.html,.htm,.csv,.xlsx"
+        accept=".pdf,.docx,.doc,.pptx,.ppt,.xlsx,.xls,.md,.txt,.html,.htm,.csv"
         @change="onFileInput"
         :disabled="uploading"
       />
@@ -324,9 +387,10 @@ onBeforeUnmount(() => {
       <div
         v-for="d in filtered"
         :key="d.id"
-        class="row"
+        class="row clickable"
         :class="{ highlight: highlightDocId === d.id }"
         :ref="(el) => setRowRef(d.id, el as HTMLElement | null)"
+        @click="openChunkList(d)"
       >
         <div class="info">
           <FileText :size="20" />
@@ -335,8 +399,16 @@ onBeforeUnmount(() => {
             <div class="meta">
               <span>{{ d.filename }}</span>
               <span>{{ formatBytes(d.file_size) }}</span>
-              <span>{{ d.chunk_count }} chunks</span>
+              <span v-if="d.parent_count && d.parent_count < d.chunk_count">
+              {{ d.parent_count }} 段 / {{ d.chunk_count }} chunks
+            </span>
+            <span v-else>{{ d.chunk_count }} chunks</span>
               <span>{{ formatDate(d.created_at) }}</span>
+            </div>
+            <!-- 文档摘要：入库时由 LLM 生成，~150-300 字。
+                 折叠展示避免列表过长，点击行打开抽屉后看完整 chunk。 -->
+            <div v-if="d.summary" class="summary" :title="d.summary">
+              {{ d.summary }}
             </div>
             <div v-if="d.error" class="error">{{ d.error }}</div>
           </div>
@@ -367,6 +439,85 @@ onBeforeUnmount(() => {
         </div>
       </div>
     </div>
+
+    <!-- 切片/原文抽屉：点击文档行打开，「切分 | 原文」tab 切换 -->
+    <AppDrawer
+      :open="chunkDrawerOpen"
+      :title="chunkListDoc ? `${chunkListDoc.title} · ${viewMode === 'original' ? '原文' : '切片'}` : '切片'"
+      :width="560"
+      @update:open="chunkDrawerOpen = $event"
+    >
+      <!-- 摘要：始终显示在抽屉顶部（如果有）。
+           用户可以一眼看到"这份文档大致讲什么"，再看下面的切分/原文对照。 -->
+      <div v-if="chunkListDoc?.summary" class="doc-summary-panel">
+        <div class="dsp-label">
+          <Sparkles :size="13" />
+          <span>文档摘要</span>
+        </div>
+        <div class="dsp-body">{{ chunkListDoc.summary }}</div>
+      </div>
+
+      <div class="view-tabs">
+        <button
+          class="view-tab"
+          :class="{ active: viewMode === 'chunks' }"
+          @click="switchView('chunks')"
+        >切分</button>
+        <button
+          class="view-tab"
+          :class="{ active: viewMode === 'original' }"
+          @click="switchView('original')"
+        >原文</button>
+      </div>
+
+      <!-- 切分视图 -->
+      <template v-if="viewMode === 'chunks'">
+        <div v-if="chunkListLoading" class="chunk-state">加载中…</div>
+        <div v-else-if="chunkListError" class="chunk-state chunk-error">{{ chunkListError }}</div>
+        <div v-else-if="!chunkList.length" class="chunk-state">
+          暂无切片（可能正在处理中或解析失败）
+        </div>
+        <ol v-else class="chunk-list">
+          <li
+            v-for="(c, i) in chunkList"
+            :key="c.chunk_id"
+            class="chunk-item"
+          >
+            <div class="chunk-head">
+              <span class="chunk-idx">#{{ (c.chunk_index ?? i) + 1 }}</span>
+              <span v-if="c.page != null" class="chunk-tag">p.{{ c.page }}</span>
+              <span v-if="c.section" class="chunk-tag">§{{ c.section }}</span>
+              <span class="chunk-len">{{ c.length }} chars</span>
+            </div>
+            <div class="chunk-preview">{{ c.preview }}{{ c.length > 200 ? '…' : '' }}</div>
+          </li>
+        </ol>
+      </template>
+
+      <!-- 原文视图：所有切片按 chunk_index 拼接的连续全文 -->
+      <template v-else>
+        <div v-if="originalLoading" class="chunk-state">加载中…</div>
+        <div v-else-if="originalError" class="chunk-state chunk-error">{{ originalError }}</div>
+        <div v-else-if="originalContent">
+          <div v-if="!originalContent.full_text" class="chunk-state">
+            该文档暂无解析内容
+          </div>
+          <pre v-else class="original-text">{{ originalContent.full_text }}</pre>
+        </div>
+      </template>
+
+      <template #footer>
+        <div class="drawer-footer">
+          {{
+            viewMode === 'chunks'
+              ? `共 ${chunkList.length} 个切片`
+              : originalContent
+                ? `共 ${originalContent.segments.length} 段`
+                : ''
+          }}
+        </div>
+      </template>
+    </AppDrawer>
   </div>
 </template>
 
@@ -447,6 +598,21 @@ header h2 { margin: 0; font-size: 16px; }
 .info > div { flex: 1; min-width: 0; }
 .title { font-size: 14px; font-weight: 500; margin-bottom: 2px; }
 .meta { display: flex; gap: 10px; font-size: 11px; color: var(--text-soft); flex-wrap: wrap; }
+.summary {
+  margin-top: 6px;
+  padding: 6px 10px;
+  border-left: 2px solid rgba(99, 102, 241, 0.4);
+  background: rgba(99, 102, 241, 0.04);
+  border-radius: 0 4px 4px 0;
+  font-size: 12px;
+  color: var(--text-soft);
+  line-height: 1.5;
+  /* 单行截断：摘要太长就 ...，完整版在抽屉/hover tooltip 里看 */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
 .api-error {
   padding: 8px 10px;
   margin-bottom: 8px;
@@ -463,4 +629,119 @@ header h2 { margin: 0; font-size: 16px; }
 .status.danger { background: #fee2e2; color: #991b1b; }
 .status.pending { background: #fef3c7; color: #92400e; }
 .empty { padding: 30px; text-align: center; color: var(--text-soft); font-size: 13px; }
+
+/* ===== 切片列表抽屉 ===== */
+.row.clickable { cursor: pointer; }
+.row.clickable:hover { border-color: var(--primary); background: var(--primary-soft); }
+
+/* 摘要面板：抽屉顶部固定显示，与下方"切分/原文"tab 联动 */
+.doc-summary-panel {
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(168, 85, 247, 0.05));
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: 8px;
+}
+.dsp-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-soft);
+  font-weight: 500;
+  margin-bottom: 6px;
+  letter-spacing: 0.02em;
+}
+.dsp-body {
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text);
+}
+
+.view-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 12px;
+}
+.view-tab {
+  flex: 1;
+  padding: 8px 0;
+  border: none;
+  background: transparent;
+  color: var(--text-soft);
+  font-size: 13px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.15s;
+}
+.view-tab:hover { color: var(--text); }
+.view-tab.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+  font-weight: 500;
+}
+.original-text {
+  margin: 0;
+  padding: 14px;
+  background: var(--bg-soft);
+  border-radius: 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 65vh;
+  overflow: auto;
+}
+.chunk-state {
+  padding: 40px 0;
+  text-align: center;
+  color: var(--text-soft);
+  font-size: 13px;
+}
+.chunk-state.chunk-error { color: var(--danger); }
+.chunk-list {
+  margin: 0; padding: 0; list-style: none;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.chunk-item {
+  padding: 10px 12px;
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.chunk-head {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+.chunk-idx {
+  font-weight: 600;
+  color: var(--primary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.chunk-tag {
+  color: var(--text-soft);
+  padding: 1px 6px;
+  background: var(--bg);
+  border-radius: 4px;
+}
+.chunk-len {
+  margin-left: auto;
+  color: var(--text-soft);
+  font-size: 11px;
+}
+.chunk-preview {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.drawer-footer {
+  font-size: 12px;
+  color: var(--text-soft);
+}
 </style>
